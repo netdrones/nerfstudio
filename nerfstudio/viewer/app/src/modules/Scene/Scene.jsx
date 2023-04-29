@@ -12,6 +12,7 @@ import { CameraHelper } from '../SidePanel/CameraPanel/CameraHelper';
 import SceneNode from '../../SceneNode';
 import { subscribe_to_changes } from '../../subscriber';
 import { snap_to_camera } from '../SidePanel/SidePanel';
+import { OrbitControls, OrbitControlsGizmo } from '../OrbitControlsGizmo';
 
 import variables from '../../index.scss';
 
@@ -93,6 +94,14 @@ export function get_scene_tree() {
   camera_controls.draggingSmoothTime=.05;
   camera_controls.restThreshold = .0025;
   camera_controls.saveState();
+
+  // Orbit Control Gizmo
+  const orbitControls = new OrbitControls(main_camera, renderer.domElement);
+  const orbitControlsGizmo = new OrbitControlsGizmo(orbitControls, {
+    size: 100,
+    padding: 8,
+  });
+  document.body.appendChild(orbitControlsGizmo.domElement);
 
   const keyMap = [];
   const moveSpeed = 0.005;
@@ -180,10 +189,26 @@ export function get_scene_tree() {
   function onKeyUp(event) {
     const keyCode = event.code;
     keyMap[keyCode] = false;
+
+    if (event.key === 'Control') {
+      dispatch({
+        type: 'write',
+        path: 'measState/enabled',
+        data: false,
+      });
+    }
   }
   function onKeyDown(event) {
     const keyCode = event.code;
     keyMap[keyCode] = true;
+
+    if (event.key === 'Control') {
+      dispatch({
+        type: 'write',
+        path: 'measState/enabled',
+        data: true,
+      });
+    }
   }
 
   function checkVisibility(camera) {
@@ -385,5 +410,6 @@ export function get_scene_tree() {
   window.addEventListener('mousedown', onMouseDown, false);
   window.addEventListener('mousemove', onMouseMove, false);
   window.addEventListener('mouseup', onMouseUp, false);
+
   return sceneTree;
 }

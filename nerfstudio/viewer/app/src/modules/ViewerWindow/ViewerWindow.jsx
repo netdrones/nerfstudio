@@ -16,6 +16,7 @@ import {
   makeThrottledMessageSender,
   ViserWebSocketContext,
 } from '../WebSocket/ViserWebSocket';
+import MeasureTool from '../MeasureTool/MeasureTool';
 
 import variables from '../../index.scss';
 
@@ -333,7 +334,7 @@ export default function ViewerWindow(props) {
         mouseVector.y > 1 ||
         mouseVector.y < -1
       );
-      if (!mouse_in_scene) { return; } 
+      if (!mouse_in_scene) { return; }
 
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouseVector, sceneTree.metadata.camera);
@@ -341,13 +342,13 @@ export default function ViewerWindow(props) {
       throttledClickSender({
         type: 'ClickMessage',
         origin: [
-          raycaster.ray.origin.x, 
-          raycaster.ray.origin.y, 
+          raycaster.ray.origin.x,
+          raycaster.ray.origin.y,
           raycaster.ray.origin.z
         ],
         direction: [
-          raycaster.ray.direction.x, 
-          raycaster.ray.direction.y, 
+          raycaster.ray.direction.x,
+          raycaster.ray.direction.y,
           raycaster.ray.direction.z
         ],
       });
@@ -357,6 +358,9 @@ export default function ViewerWindow(props) {
       window.removeEventListener('dblclick', onMouseDouble, false);
     };
   }, [size, sceneTree.metadata.camera, throttledClickSender]);
+
+  // Measurement
+  const meas_enabled = useSelector((state) => state.measState.enabled);
 
   return (
     <>
@@ -382,6 +386,7 @@ export default function ViewerWindow(props) {
       <div className="ViewerWindow-render-crop-container">
         <div className="ViewerWindow-render-crop" style={crop_style} />
       </div>
+      {meas_enabled && <MeasureTool sceneTree={sceneTree} />}
     </>
   );
 }
