@@ -17,6 +17,7 @@ import {
   makeThrottledMessageSender,
   ViserWebSocketContext,
 } from '../WebSocket/ViserWebSocket';
+import MeasureTool from '../MeasureTool/MeasureTool';
 
 function CameraToggle() {
   const dispatch = useDispatch();
@@ -301,6 +302,9 @@ export default function ViewerWindow(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWebsocketConnected]);
 
+  // Measurement
+  const meas_enabled = useSelector((state) => state.measState.enabled);
+
   return (
     <>
       <RenderWindow />
@@ -315,6 +319,7 @@ export default function ViewerWindow(props) {
       <div className="ViewerWindow-render-crop-container">
         <div className="ViewerWindow-render-crop" style={crop_style} />
       </div>
+      {meas_enabled && <MeasureTool sceneTree={sceneTree} />}
     </>
   );
 }
