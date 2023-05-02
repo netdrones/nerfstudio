@@ -17,6 +17,7 @@ import {
   ViserWebSocketContext,
 } from '../WebSocket/ViserWebSocket';
 import MeasureTool from '../MeasureTool/MeasureTool';
+import MeasureTool2D from '../MeasureTool/MeasureTool2D';
 
 import variables from '../../index.scss';
 
@@ -386,7 +387,8 @@ export default function ViewerWindow(props) {
       <div className="ViewerWindow-render-crop-container">
         <div className="ViewerWindow-render-crop" style={crop_style} />
       </div>
-      <MeasureTool sceneTree={sceneTree} />
+      <MeasureTool2D sceneTree={sceneTree} />
+      {/* <MeasureTool sceneTree={sceneTree} /> */}
     </>
   );
 }

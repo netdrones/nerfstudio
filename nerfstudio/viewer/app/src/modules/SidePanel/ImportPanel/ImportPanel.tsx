@@ -100,10 +100,10 @@ export default function ImportPanel(props) {
     [sceneTree],
   );
 
-  const importFileRef = React.createRef();
+  const importFileRef = React.createRef<HTMLInputElement>();
   const onClickImportFile = React.useCallback(() => {
-    importFileRef.current.click();
-  });
+    importFileRef.current?.click();
+  }, [importFileRef]);
 
   return (
     <div className="ImportPanel">

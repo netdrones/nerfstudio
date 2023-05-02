@@ -1,5 +1,6 @@
-import { LevaPanel, LevaStoreProvider, useCreateStore } from 'leva';
 import * as React from 'react';
+
+import { LevaPanel, LevaStoreProvider, useCreateStore } from 'leva';
 import LevaTheme from '../../../themes/leva_theme.json';
 import SceneNode from '../../../SceneNode';
 import MeasurementPropPanel from './MeasurementPropPanel';
@@ -27,7 +28,7 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
   return (
     <div className="MeasPanel">
       <div className="MeasPanel-label">
-        Press Control key and click points to start measurement.
+        Press Shift key and click points to start measurement.
       </div>
       <LevaPanel
         store={measPropStore}
