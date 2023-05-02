@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
 import { Line2 } from 'three/examples/jsm/lines/Line2';
@@ -8,6 +8,10 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial';
 
 const MEASUREMENT_NAME = 'Measurement';
 const IMPORTED_OBJECT_NAME = 'Import';
+const MEAS_ORIGIN_MARKER_NAME = 'Measurement-Origin';
+const MEAS_END_MARKER_NAME = 'Measurement-End';
+const MEAS_LINE_NAME = 'Measurement-Line';
+const MEAS_LABEL_NAME = 'Measurement-Label';
 
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
@@ -21,38 +25,18 @@ export default function MeasureTool(props) {
   const [referencePoint, setReferencePoint] = React.useState(null);
   const [pickableObjects, setPickableObjects] = React.useState(null);
 
+  const measEnabled = useSelector((state) => state.measState.enabled);
   const fontSize = useSelector((state) => state.measState.fontSize);
   const color = useSelector((state) => state.measState.color);
   const markerRadius = useSelector((state) => state.measState.markerRadius);
   const lineWidth = useSelector((state) => state.measState.lineWidth);
   const measUnit = useSelector((state) => state.measState.unit);
 
-  React.useEffect(() => {
-    // Creaet a root group that maintains measurement objects
-    const measGroup = sceneTree.find_no_create([MEASUREMENT_NAME]);
-    if (!measGroup) {
-      sceneTree.set_object_from_path([MEASUREMENT_NAME], new THREE.Group());
-    }
-
-    camera_controls.enabled = false;
-
-    // FIXME: Add NeRF objects that Raycaster detects
-    const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
-    if (node) {
-      setPickableObjects([node.object]);
-    }
-
-    return () => {
-      camera_controls.enabled = true;
-    };
-  }, []);
-
   const createMarker = React.useCallback(
     (point) => {
       const geom = new THREE.SphereGeometry(markerRadius);
       const mat = new THREE.MeshLambertMaterial({ color });
       const marker = new THREE.Mesh(geom, mat);
-      marker.name = `Marker-${new Date().getTime()}`;
       marker.position.copy(point);
       return marker;
     },
@@ -77,6 +61,7 @@ export default function MeasureTool(props) {
         const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
         const point = intersects[0].point;
         const marker = createMarker(point);
+        marker.name = MEAS_ORIGIN_MARKER_NAME;
         measGroup.add(marker);
 
         if (!isMeasuring) {
@@ -97,7 +82,7 @@ export default function MeasureTool(props) {
           geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
 
           const line = new Line2(geomLine, matLine);
-          line.name = 'Measurement-Line';
+          line.name = MEAS_LINE_NAME;
           line.scale.set(1, 1, 1);
           measGroup.add(line);
 
@@ -117,11 +102,17 @@ export default function MeasureTool(props) {
           setMeasuring(true);
         } else {
           const labelId = new Date().getTime().toString();
-          const line = measGroup.getObjectByName('Measurement-Line');
-          line.name = `Measurement-Line-${labelId}`;
+          const origin = measGroup.getObjectByName(MEAS_ORIGIN_MARKER_NAME);
+          origin.name = `${MEAS_ORIGIN_MARKER_NAME}-${labelId}`;
 
-          const measLabel = measGroup.getObjectByName('Measurement-Label');
-          measLabel.name = `Measurement-Label-${labelId}`;
+          const end = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
+          end.name = `${MEAS_END_MARKER_NAME}-${labelId}`;
+
+          const line = measGroup.getObjectByName(MEAS_LINE_NAME);
+          line.name = `${MEAS_LINE_NAME}-${labelId}`;
+
+          const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
+          measLabel.name = `${MEAS_LABEL_NAME}-${labelId}`;
 
           setMeasuring(false);
         }
@@ -156,15 +147,15 @@ export default function MeasureTool(props) {
         raycaster.intersectObjects(pickableObjects, true, intersects);
         if (intersects.length > 0) {
           const point = intersects[0].point;
-          let marker = measGroup.getObjectByName('Measurement-Marker');
+          let marker = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
           if (!marker) {
             marker = createMarker(point);
-            marker.name = 'Measurement-Marker';
+            marker.name = MEAS_END_MARKER_NAME;
             measGroup.add(marker);
           }
           marker.position.copy(point);
 
-          const line = measGroup.getObjectByName('Measurement-Line');
+          const line = measGroup.getObjectByName(MEAS_LINE_NAME);
           line.geometry.setPositions([
             referencePoint.x,
             referencePoint.y,
@@ -189,7 +180,7 @@ export default function MeasureTool(props) {
             d = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
           }
 
-          const measLabel = measGroup.getObjectByName('Measurement-Label');
+          const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
           measLabel.element.innerText = d;
           measLabel.position.lerpVectors(v0, v1, 0.5);
         }
@@ -206,20 +197,66 @@ export default function MeasureTool(props) {
     ],
   );
 
+  React.useEffect(() => {
+    // Creaet a root group that maintains measurement objects
+    const measGroup = sceneTree.find_no_create([MEASUREMENT_NAME]);
+    if (!measGroup) {
+      sceneTree.set_object_from_path([MEASUREMENT_NAME], new THREE.Group());
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (measEnabled) {
+      camera_controls.enabled = false;
+
+      // FIXME: Add NeRF objects that Raycaster detects
+      const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
+      if (node) {
+        setPickableObjects([node.object]);
+      }
+    } else {
+      camera_controls.enabled = true;
+
+      // Make sure to cancel incomplete measurement
+      const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
+      const origin = measGroup.getObjectByName(MEAS_ORIGIN_MARKER_NAME);
+      const end = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
+      const line = measGroup.getObjectByName(MEAS_LINE_NAME);
+      const label = measGroup.getObjectByName(MEAS_LABEL_NAME);
+      if (origin) {
+        measGroup.remove(origin);
+      }
+      if (end) {
+        measGroup.remove(end);
+      }
+      if (line) {
+        measGroup.remove(line);
+      }
+      if (label) {
+        label.element.parentNode.removeChild(label.element);
+        measGroup.remove(label);
+      }
+    }
+  }, [measEnabled, sceneTree]);
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: renderer.domElement.offsetWidth + 'px',
-        height: renderer.domElement.offsetHeight + 'px',
-        zIndex: 9999,
-        background: 'transparent',
-        cursor: 'crosshair',
-      }}
-      onPointerDown={handleMeasStart}
-      onPointerMove={handleMeasMove}
-    ></div>
+    <>
+      {!!measEnabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: renderer.domElement.offsetWidth + 'px',
+            height: renderer.domElement.offsetHeight + 'px',
+            zIndex: 9999,
+            background: 'transparent',
+            cursor: 'crosshair',
+          }}
+          onPointerDown={handleMeasStart}
+          onPointerMove={handleMeasMove}
+        ></div>
+      )}
+    </>
   );
 }

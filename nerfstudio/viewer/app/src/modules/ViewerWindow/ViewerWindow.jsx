@@ -386,7 +386,7 @@ export default function ViewerWindow(props) {
       <div className="ViewerWindow-render-crop-container">
         <div className="ViewerWindow-render-crop" style={crop_style} />
       </div>
-      {meas_enabled && <MeasureTool sceneTree={sceneTree} />}
+      <MeasureTool sceneTree={sceneTree} />
     </>
   );
 }
