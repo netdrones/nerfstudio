@@ -3,7 +3,8 @@ import { useSelector } from 'react-redux';
 
 export default function RenderWindow() {
   const isWebsocketConnected = useSelector(
-    (state) => state.websocketState.isConnected,
+    // (state) => state.websocketState.isConnected,
+    (state) => true,
   );
 
   return (
