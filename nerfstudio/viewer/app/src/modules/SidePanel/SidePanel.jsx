@@ -77,7 +77,7 @@ interface PanelContentsProps {
 
 function PanelContents(props: PanelContentsProps) {
   const dispatch = useDispatch();
-  const [tabState, setTabState] = React.useState(4);
+  const [tabState, setTabState] = React.useState(0);
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabState(newValue);
     dispatch({

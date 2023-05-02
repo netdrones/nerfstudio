@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { useSelector } from 'react-redux';
 import * as THREE from 'three';
+
+import { useSelector } from 'react-redux';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
 import { Line2 } from 'three/examples/jsm/lines/Line2';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry';
@@ -18,8 +19,8 @@ export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
   const renderer = sceneTree.metadata.renderer;
   const camera_controls = sceneTree.metadata.camera_controls;
-  const raycaster = React.useMemo(() => new THREE.Raycaster());
-  const intersects = React.useMemo(() => []);
+  const raycaster = new THREE.Raycaster();
+  const intersects = [];
 
   const [isMeasuring, setMeasuring] = React.useState(false);
   const [referencePoint, setReferencePoint] = React.useState(null);
