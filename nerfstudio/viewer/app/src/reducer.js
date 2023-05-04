@@ -69,7 +69,7 @@ const initialState = {
   measState: {
     scaleFactor: 1.0,
     enabled: false,
-    fontSize: '14px',
+    fontSize: '16px',
     color: '#00ff00',
     markerRadius: 0.01,
     lineWidth: 0.005,

@@ -13,6 +13,9 @@ interface MeasureTool2DProps {
   sceneTree: SceneNode;
 }
 
+const _MEAS_MARKER_RADIUS = 4;
+const _MEAS_LINE_WIDTH = 4;
+
 export default function MeasureTool2D(props: MeasureTool2DProps) {
   const sceneTree = props.sceneTree;
   const renderer = (sceneTree.metadata as any).renderer as THREE.WebGLRenderer;
@@ -21,15 +24,18 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const dispatch = useDispatch();
 
-  const [referencePoints, setReferencePoints] = React.useState<number[][]>([]);
+  const [referencePoints, setReferencePoints] = React.useState<THREE.Vector2[]>(
+    [],
+  );
   const [isMeasuring, setMeasuring] = React.useState(false);
 
   const measEnabled = useSelector((state: any) => state.measState.enabled);
+  const fontSize = useSelector((state: any) => state.measState.fontSize);
   const color = useSelector((state: any) => state.measState.color);
   const doClear = useSelector((state: any) => state.measState.clear);
 
   const drawMeasures = React.useCallback(
-    (points) => {
+    (points: THREE.Vector2[]) => {
       const canvas = canvasRef.current!!;
       const ctx = canvas.getContext('2d');
       if (ctx) {
@@ -37,23 +43,53 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
 
         points.forEach((point, idx) => {
           ctx.beginPath();
-          ctx.arc(point[0], point[1], 4, 0, 2 * Math.PI);
+          ctx.arc(point.x, point.y, _MEAS_MARKER_RADIUS, 0, 2 * Math.PI);
           ctx.fillStyle = color;
           ctx.fill();
+          ctx.closePath();
 
-          if (idx % 2 == 1) {
-            const lastPoint = referencePoints[idx - 1];
+          ctx.beginPath();
+          ctx.font = `${fontSize} sans-serif`;
+          ctx.fillStyle = color;
+          ctx.fillText(
+            `(${point.x.toFixed(0)}, ${point.y.toFixed(0)})`,
+            point.x - 35,
+            point.y - 10,
+          );
+          ctx.closePath();
+
+          if (idx % 2 == 0 && idx < points.length - 1) {
+            const nextPoint = points[idx + 1];
+            ctx.save();
             ctx.beginPath();
             ctx.setLineDash([5, 15]);
-            ctx.moveTo(lastPoint[0], lastPoint[1]);
-            ctx.lineTo(point[0], point[1]);
+            ctx.moveTo(point.x, point.y);
+            ctx.lineTo(nextPoint.x, nextPoint.y);
+            ctx.lineWidth = _MEAS_LINE_WIDTH;
             ctx.strokeStyle = color;
             ctx.stroke();
+            ctx.restore();
+
+            const d = point.distanceTo(nextPoint);
+            const centerX = (point.x + nextPoint.x) / 2;
+            const centerY = (point.y + nextPoint.y) / 2;
+            const angle = Math.atan2(
+              nextPoint.y - point.y,
+              nextPoint.x - point.x,
+            );
+            console.log((angle * 180) / Math.PI);
+            ctx.save();
+            ctx.font = `${fontSize} sans-serif`;
+            ctx.fillStyle = color;
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+            ctx.fillText(`${d.toFixed(0)}`, 0, 0);
+            ctx.restore();
           }
         });
       }
     },
-    [canvasRef],
+    [canvasRef, fontSize, color],
   );
 
   const handlePointerDown = React.useCallback(
@@ -63,25 +99,19 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
       const x = evt.clientX - canvasPos.left;
       const y = evt.clientY - canvasPos.top;
 
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
+      // sendWebsocketMessage(viser_websocket, {
+      //   type: 'MeasurementStart',
+      //   x,
+      //   y,
+      // });
 
-        referencePoints.push([x, y]);
-        setReferencePoints(referencePoints);
-
-        // sendWebsocketMessage(viser_websocket, {
-        //   type: 'MeasurementStart',
-        //   x,
-        //   y,
-        // });
-      }
       if (isMeasuring) {
         setMeasuring(false);
       } else {
+        referencePoints.push(new THREE.Vector2(x, y));
+        setReferencePoints(referencePoints);
+        drawMeasures(referencePoints);
+
         setMeasuring(true);
       }
     },
@@ -96,33 +126,18 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
         const x = evt.clientX - canvasPos.left;
         const y = evt.clientY - canvasPos.top;
 
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          drawMeasures(referencePoints);
-
-          const point = referencePoints[referencePoints.length - 1];
-          ctx.beginPath();
-          ctx.arc(point[0], point[1], 4, 0, 2 * Math.PI);
-          ctx.fillStyle = color;
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.setLineDash([5, 15]);
-          ctx.moveTo(point[0], point[1]);
-          ctx.lineTo(x, y);
-          ctx.strokeStyle = color;
-          ctx.stroke();
+        const point = new THREE.Vector2(x, y);
+        if (referencePoints.length % 2 == 0) {
+          referencePoints[referencePoints.length - 1] = point;
+        } else {
+          console.log('add point');
+          referencePoints.push(point);
         }
-
-        // sendWebsocketMessage(viser_websocket, {
-        //   type: 'MeasurementEnd',
-        //   x,
-        //   y,
-        // });
+        drawMeasures(referencePoints);
+        setReferencePoints(referencePoints);
       }
     },
-    [canvasRef, isMeasuring, color, referencePoints],
+    [canvasRef, isMeasuring, referencePoints],
   );
 
   React.useEffect(() => {

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
 import {
   Button,
@@ -55,6 +56,8 @@ export default function ImportPanel(props) {
         const reader = new FileReader();
         reader.addEventListener('loadend', (evt) => {
           const blob = reader.result;
+          if (!blob) return;
+
           if (file.name.match(/.*\.fbx$/gi)) {
             const loader = new FBXLoader();
             const geom = loader.parse(blob);
@@ -68,7 +71,28 @@ export default function ImportPanel(props) {
               mesh,
             );
           } else if (file.name.match(/.*\.obj$/gi)) {
-            const loader = new OBJLoader();
+            // const mtlLoader = new MTLLoader();
+            // mtlLoader.setPath('http://localhost:4000/mesh');
+            // mtlLoader.setResourcePath('http://localhost:4000/mesh');
+            // mtlLoader.load(
+            //   'material_0.mtl',
+            //   (mtl) => {
+            //     mtl.preload();
+
+            //     const objLoader = new OBJLoader();
+            //     objLoader.setMaterials(mtl);
+            //     objLoader.load('mesh/mesh.obj', (model) => {
+            //       model.position.set(0, 0, 0.4);
+            //       sceneTree.object.add(model);
+            //     });
+            //   },
+            //   (evt) => {
+            //     console.log(`mtl loader progress ${evt.loaded} / ${evt.total}`);
+            //   },
+            //   (err) => {
+            //     console.error('material loader failed', err);
+            //   },
+            // );
             const geom = loader.parse(blob);
             const mat = new THREE.MeshPhongMaterial({ color: '#407796' });
             const mesh = new THREE.Mesh(geom, mat);
