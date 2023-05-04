@@ -181,7 +181,7 @@ export function get_scene_tree() {
     const keyCode = event.code;
     keyMap[keyCode] = false;
 
-    if (event.key === 'Control') {
+    if (event.key === 'Shift') {
       dispatch({
         type: 'write',
         path: 'measState/enabled',
@@ -193,7 +193,7 @@ export function get_scene_tree() {
     const keyCode = event.code;
     keyMap[keyCode] = true;
 
-    if (event.key === 'Control') {
+    if (event.key === 'Shift') {
       dispatch({
         type: 'write',
         path: 'measState/enabled',

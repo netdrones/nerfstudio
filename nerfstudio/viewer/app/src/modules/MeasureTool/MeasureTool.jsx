@@ -20,11 +20,10 @@ export default function MeasureTool(props) {
   const renderer = sceneTree.metadata.renderer;
   const camera_controls = sceneTree.metadata.camera_controls;
   const raycaster = new THREE.Raycaster();
-  const intersects = [];
 
   const [isMeasuring, setMeasuring] = React.useState(false);
   const [referencePoint, setReferencePoint] = React.useState(null);
-  const [pickableObjects, setPickableObjects] = React.useState(null);
+  const [pickableObjects, setPickableObjects] = React.useState([]);
 
   const measEnabled = useSelector((state) => state.measState.enabled);
   const fontSize = useSelector((state) => state.measState.fontSize);
@@ -55,9 +54,8 @@ export default function MeasureTool(props) {
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
-      intersects.length = 0;
       raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
-      raycaster.intersectObjects(pickableObjects, true, intersects);
+      const intersects = raycaster.intersectObjects(pickableObjects, true);
       if (intersects.length > 0) {
         const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
         const point = intersects[0].point;
@@ -119,15 +117,7 @@ export default function MeasureTool(props) {
         }
       }
     },
-    [
-      sceneTree,
-      raycaster,
-      color,
-      fontSize,
-      isMeasuring,
-      pickableObjects,
-      intersects,
-    ],
+    [sceneTree, raycaster, color, fontSize, isMeasuring, pickableObjects],
   );
 
   const handleMeasMove = React.useCallback(
@@ -143,9 +133,8 @@ export default function MeasureTool(props) {
 
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
       if (isMeasuring) {
-        intersects.length = 0;
         raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
-        raycaster.intersectObjects(pickableObjects, true, intersects);
+        const intersects = raycaster.intersectObjects(pickableObjects, true);
         if (intersects.length > 0) {
           const point = intersects[0].point;
           let marker = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
@@ -192,7 +181,6 @@ export default function MeasureTool(props) {
       raycaster,
       isMeasuring,
       pickableObjects,
-      intersects,
       referencePoint,
       measUnit,
     ],
@@ -211,10 +199,13 @@ export default function MeasureTool(props) {
       camera_controls.enabled = false;
 
       // FIXME: Add NeRF objects that Raycaster detects
-      const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
-      if (node) {
-        setPickableObjects([node.object]);
-      }
+      console.log(sceneTree.object);
+      // const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
+      // if (node) {
+      //   setPickableObjects([node.object]);
+      // }
+      console.log(sceneTree.object.children);
+      setPickableObjects(sceneTree.object.children);
     } else {
       camera_controls.enabled = true;
 
@@ -234,7 +225,9 @@ export default function MeasureTool(props) {
         measGroup.remove(line);
       }
       if (label) {
-        label.element.parentNode.removeChild(label.element);
+        if (label.element && label.element.parentNode) {
+          label.element.parentNode.removeChild(label.element);
+        }
         measGroup.remove(label);
       }
     }
