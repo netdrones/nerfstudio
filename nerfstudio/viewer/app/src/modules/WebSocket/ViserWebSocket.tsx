@@ -309,6 +309,7 @@ function handleMessage(
       });
       break;
     }
+<<<<<<< HEAD
     case 'OutputOptionsMessage': {
       dispatch({
         type: 'write',
@@ -317,6 +318,11 @@ function handleMessage(
       });
       break;
     }
+=======
+    // case 'ExportMeshMessage': {
+    //   break;
+    // }
+>>>>>>> 555c19a (update)
     default: {
       console.log('Received message did not match any known types:', message);
       break;

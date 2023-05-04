@@ -1,2 +1,3 @@
 import MeasurementPanel from '../MeasurementPanel';
-export default MeasurementPanel;
+import ImportPanel from './ImportPanel';
+export default ImportPanel;

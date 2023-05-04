@@ -91,6 +91,7 @@ export default function MeasureTool(props) {
           measLabelDiv.className = 'MeasurementLabel';
           measLabelDiv.style.fontSize = fontSize;
           measLabelDiv.style.fontFamily = 'monospace';
+          measLabelDiv.style.fontWeight = 'bold';
           measLabelDiv.style.color = color;
 
           const measLabel = new CSS2DObject(measLabelDiv);
@@ -199,13 +200,11 @@ export default function MeasureTool(props) {
       camera_controls.enabled = false;
 
       // FIXME: Add NeRF objects that Raycaster detects
-      console.log(sceneTree.object);
-      // const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
-      // if (node) {
-      //   setPickableObjects([node.object]);
-      // }
-      console.log(sceneTree.object.children);
-      setPickableObjects(sceneTree.object.children);
+      const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
+      if (node) {
+        setPickableObjects([node.object]);
+      }
+      // setPickableObjects(sceneTree.object.children);
     } else {
       camera_controls.enabled = true;
 

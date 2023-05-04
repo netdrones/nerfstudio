@@ -6,14 +6,22 @@ export default function MeasurementPropPanel(props) {
   const dispatch = useDispatch();
 
   // const scaleFactorValue = useSelector((state) => state.measState.scaleFactor);
-  const fontSizeValue = useSelector((state) => state.measState.fontSize);
-  const colorValue = useSelector((state) => state.measState.color);
+  const measType = useSelector((state: any) => state.measState.type);
+  const fontSizeValue = useSelector((state: any) => state.measState.fontSize);
+  const colorValue = useSelector((state: any) => state.measState.color);
   const markerRadiusValue = useSelector(
-    (state) => state.measState.markerRadius,
+    (state: any) => state.measState.markerRadius,
   );
-  const lineWidthValue = useSelector((state) => state.measState.lineWidth);
-  const unitValue = useSelector((state) => state.measState.unit);
+  const lineWidthValue = useSelector((state: any) => state.measState.lineWidth);
+  const unitValue = useSelector((state: any) => state.measState.unit);
 
+  const setType = (value) => {
+    dispatch({
+      type: 'write',
+      path: 'measState/type',
+      data: value,
+    });
+  };
   const setFontSize = (value) => {
     dispatch({
       type: 'write',
@@ -64,6 +72,17 @@ export default function MeasurementPropPanel(props) {
       //   },
       // },
 
+      type: {
+        label: 'Dimension',
+        value: measType,
+        options: {
+          '2D': '2d',
+          '3D': '3d',
+        },
+        onChange: (v) => {
+          setType(v);
+        },
+      },
       fontSize: {
         label: 'Font Size',
         value: fontSizeValue,

@@ -21,7 +21,7 @@ import CameraPanel from './CameraPanel';
 import ScenePanel from './ScenePanel';
 import { RenderControls } from '../ConfigPanel/ConfigPanel';
 import ExportPanel from './ExportPanel';
-import ImportPanel from './ImportPanel/ImportPanel';
+import ImportPanel from './ImportPanel';
 import MeasurementPanel from './MeasurementPanel/MeasurementPanel';
 
 export const snap_to_camera = (sceneTree, camera, matrix) => {
@@ -78,7 +78,7 @@ interface PanelContentsProps {
 
 function PanelContents(props: PanelContentsProps) {
   const dispatch = useDispatch();
-  const [tabState, setTabState] = React.useState(0);
+  const [tabState, setTabState] = React.useState(2);
   const handleChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabState(newValue);
     dispatch({
@@ -129,16 +129,10 @@ function PanelContents(props: PanelContentsProps) {
             {...a11yProps(3)}
           />
           <Tab
-            icon={<FileUploadRounded />}
-            label="Import"
-            disabled={camera_choice === 'Render Camera'}
-            {...a11yProps(4)}
-          />
-          <Tab
             icon={<StraightenRounded />}
             label="Measure"
             disabled={camera_choice === 'Render Camera'}
-            {...a11yProps(5)}
+            {...a11yProps(4)}
           />
         </Tabs>
       </Box>
@@ -170,7 +164,6 @@ export function BasicTabs(props: BasicTabsProps) {
           <CameraPanel sceneTree={sceneTree} />
           <ScenePanel sceneTree={sceneTree} />
           <ExportPanel sceneTree={sceneTree} />
-          <ImportPanel sceneTree={sceneTree} />
           <MeasurementPanel sceneTree={sceneTree} />
         </PanelContents>
       </Box>

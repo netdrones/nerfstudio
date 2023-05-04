@@ -99,6 +99,22 @@ interface StatusMessage {
 interface SaveCheckpointMessage {
   type: "SaveCheckpointMessage";
 }
+interface GetDepthMessage {
+  type: "GetDepthMessage";
+  x_coord: number;
+  y_coord: number;
+  aspect: number;
+  render_aspect: number;
+  fov: number;
+  matrix: [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+  camera_type: 'perspective' | 'fisheye' | 'equirectangular';
+}
+interface DepthInfoMessage {
+  type: "DepthInfoMessage";
+  origins: [number, number, number];
+  directions: [number, number, number];
+  camera_type: 'perspective' | 'fisheye' | 'equirectangular';
+}
 interface UseTimeConditioningMessage {
   type: "UseTimeConditioningMessage";
 }
@@ -115,8 +131,25 @@ interface OutputOptionsMessage {
   type: "OutputOptionsMessage";
   options: any;
 }
+interface ExportMeshMessage {
+  type: "ExportMeshMessage";
+  method: 'tsdf' | 'poisson';
+  numFaces: number;
+  textureResolution: number;
+  numPoints: number;
+  removeOutliners: boolean;
+  clipping: boolean;
+  boundingBoxMin: [number, number, number];
+  boundingBoxMax: [number, number, number];
+  center: [number, number, number];
+}
+interface DownloadFileMessage {
+  type: "DownloadFileMessage";
+  name: string;
+  data: string;
+}
 
-export type Message = 
+export type Message =
   | BackgroundImageMessage
   | GuiAddMessage
   | GuiRemoveMessage
@@ -136,7 +169,11 @@ export type Message =
   | CropParamsMessage
   | StatusMessage
   | SaveCheckpointMessage
+  | GetDepthMessage
+  | DepthInfoMessage
   | UseTimeConditioningMessage
   | TimeConditionMessage
   | ClickMessage
   | OutputOptionsMessage;
+  | ExportMeshMessage
+  | DownloadFileMessage;

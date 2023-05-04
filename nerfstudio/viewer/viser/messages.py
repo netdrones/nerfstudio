@@ -18,10 +18,10 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Literal, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple, List
 
 import viser.infra
-from typing_extensions import override
+from typing_extensions import Literal, override
 
 
 class NerfstudioMessage(viser.infra.Message):
@@ -243,11 +243,40 @@ class StatusMessage(NerfstudioMessage):
 class SaveCheckpointMessage(NerfstudioMessage):
     """Save checkpoint message."""
 
+@dataclasses.dataclass
+class GetDepthMessage(NerfstudioMessage):
+    """Message for server receiving 2D mouse click and retrieving depth value."""
+
+    x_coord: float
+    """ Mouse x coordinate """
+    y_coord: float
+    """ Mouse y coordinate """
+    aspect: float
+    """ Aspect ratio of the camera """
+    render_aspect: float
+    """ Aspect ratio of the render window """
+    fov: float
+    """ Field of view of the camera """
+    matrix: Tuple[
+        float, float, float, float, float, float, float, float, float, float, float, float, float, float, float, float
+    ]
+    """ Camera matrix """
+    camera_type: Literal["perspective", "fisheye", "equirectangular"]
+    """ Camera type """
+
+@dataclasses.dataclass
+class DepthInfoMessage(NerfstudioMessage):
+    """Message for client receiving raycasting value from server."""
+    origins: Tuple[float, float, float]
+    """ Vector origin """
+    directions: Tuple[float, float, float]
+    """ Vector direction """
+    camera_type: Literal["perspective", "fisheye", "equirectangular"]
+    """ Camera type """
 
 @dataclasses.dataclass
 class UseTimeConditioningMessage(NerfstudioMessage):
     """Use time conditioning message."""
-
 
 @dataclasses.dataclass
 class TimeConditionMessage(NerfstudioMessage):
@@ -272,6 +301,43 @@ class OutputOptionsMessage(NerfstudioMessage):
     """Output options message which are used in the export panel.
     TODO: remove when export panel is becomes python defined.
     """
+class ExportMeshMessage(NerfstudioMessage):
+    """Export NeRF model as mesh message."""
 
-    options: Any
-    """ List of output option strings"""
+    method: Literal['tsdf', 'poisson']
+    """Mesh method"""
+
+    numFaces: int
+    """Number of faces"""
+
+    textureResolution: int
+    """"""
+
+    numPoints: int
+    """Number of points"""
+
+    removeOutliners: bool
+    """Remove outlines if True"""
+
+    clipping: bool
+    """Clipped by bounding box if True"""
+
+    boundingBoxMin: Tuple[float, float, float]
+    """Min bounding box"""
+
+    boundingBoxMax: Tuple[float, float, float]
+    """Max bounding box"""
+
+    center: Tuple[float, float, float]
+    """Center coordinate"""
+
+
+@dataclasses.dataclass
+class DownloadFileMessage(NerfstudioMessage):
+    """Download a file message."""
+
+    name: str
+    """Name of the file"""
+
+    data: str
+    """A binary data of the file"""
