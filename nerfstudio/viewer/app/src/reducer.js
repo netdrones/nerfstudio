@@ -74,6 +74,7 @@ const initialState = {
     markerRadius: 0.01,
     lineWidth: 0.005,
     unit: 'metric',
+    clear: false,
   },
 };
 

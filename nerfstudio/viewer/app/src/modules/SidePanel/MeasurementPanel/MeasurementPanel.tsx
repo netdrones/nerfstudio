@@ -5,6 +5,7 @@ import LevaTheme from '../../../themes/leva_theme.json';
 import SceneNode from '../../../SceneNode';
 import MeasurementPropPanel from './MeasurementPropPanel';
 import { Button } from '@mui/material';
+import { useDispatch } from 'react-redux';
 
 const MEASUREMENT_NAME = 'Measurement';
 
@@ -15,14 +16,20 @@ interface MeasurementPanelProps {
 export default function MeasurementPanel(props: MeasurementPanelProps) {
   const sceneTree = props.sceneTree;
   const measPropStore = useCreateStore();
+  const dispatch = useDispatch();
 
   const handleClear = React.useCallback(() => {
-    sceneTree.delete([MEASUREMENT_NAME]);
+    // sceneTree.delete([MEASUREMENT_NAME]);
 
-    // HACK: Make sure CSS2DObject to be removed from DOM tree
-    for (let elm of document.querySelectorAll('.MeasurementLabel')) {
-      elm.parentNode.removeChild(elm);
-    }
+    // // HACK: Make sure CSS2DObject to be removed from DOM tree
+    // for (let elm of document.querySelectorAll('.MeasurementLabel')) {
+    //   elm.parentNode.removeChild(elm);
+    // }
+    dispatch({
+      type: 'write',
+      path: 'measState/clear',
+      data: true,
+    });
   }, [sceneTree]);
 
   return (
