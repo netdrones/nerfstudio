@@ -276,6 +276,9 @@ function handleMessage(
       });
       break;
     }
+    // case 'ExportMeshMessage': {
+    //   break;
+    // }
     default: {
       console.log('Received message did not match any known types:', message);
       break;

@@ -8,7 +8,7 @@ interface BackgroundImageMessage {
 interface GuiAddMessage {
   type: 'GuiAddMessage';
   name: string;
-  folder_labels: [string];
+  folder_labels: string[];
   leva_conf: any;
 }
 interface GuiRemoveMessage {
@@ -116,6 +116,23 @@ interface TimeConditionMessage {
   type: 'TimeConditionMessage';
   time: number;
 }
+interface ExportMeshMessage {
+  type: 'ExportMeshMessage';
+  method: 'tsdf' | 'poisson';
+  numFaces: number;
+  textureResolution: number;
+  numPoints: number;
+  removeOutliners: boolean;
+  clipping: boolean;
+  boundingBoxMin: [number, number, number];
+  boundingBoxMax: [number, number, number];
+  center: [number, number, number];
+}
+interface DownloadFileMessage {
+  type: 'DownloadFileMessage';
+  name: string;
+  data: string;
+}
 
 export type Message =
   | BackgroundImageMessage
@@ -137,4 +154,6 @@ export type Message =
   | StatusMessage
   | SaveCheckpointMessage
   | UseTimeConditioningMessage
-  | TimeConditionMessage;
+  | TimeConditionMessage
+  | ExportMeshMessage
+  | DownloadFileMessage;

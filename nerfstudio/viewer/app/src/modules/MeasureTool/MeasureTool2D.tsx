@@ -77,7 +77,6 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
               nextPoint.y - point.y,
               nextPoint.x - point.x,
             );
-            console.log((angle * 180) / Math.PI);
             ctx.save();
             ctx.font = `${fontSize} sans-serif`;
             ctx.fillStyle = color;
@@ -130,7 +129,6 @@ export default function MeasureTool2D(props: MeasureTool2DProps) {
         if (referencePoints.length % 2 == 0) {
           referencePoints[referencePoints.length - 1] = point;
         } else {
-          console.log('add point');
           referencePoints.push(point);
         }
         drawMeasures(referencePoints);

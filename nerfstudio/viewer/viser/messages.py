@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Tuple
+from typing import Any, Tuple, List
 
 import viser.infra
 from typing_extensions import Literal, override
@@ -241,3 +241,46 @@ class TimeConditionMessage(NerfstudioMessage):
 
     time: float
     """ Time conditioning value """
+
+
+@dataclasses.dataclass
+class ExportMeshMessage(NerfstudioMessage):
+    """Export NeRF model as mesh message."""
+
+    method: Literal['tsdf', 'poisson']
+    """Mesh method"""
+
+    numFaces: int
+    """Number of faces"""
+
+    textureResolution: int
+    """"""
+
+    numPoints: int
+    """Number of points"""
+
+    removeOutliners: bool
+    """Remove outlines if True"""
+
+    clipping: bool
+    """Clipped by bounding box if True"""
+
+    boundingBoxMin: Tuple[float, float, float]
+    """Min bounding box"""
+
+    boundingBoxMax: Tuple[float, float, float]
+    """Max bounding box"""
+
+    center: Tuple[float, float, float]
+    """Center coordinate"""
+
+
+@dataclasses.dataclass
+class DownloadFileMessage(NerfstudioMessage):
+    """Download a file message."""
+
+    name: str
+    """Name of the file"""
+
+    data: str
+    """A binary data of the file"""

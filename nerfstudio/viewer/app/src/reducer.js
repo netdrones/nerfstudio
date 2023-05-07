@@ -67,11 +67,11 @@ const initialState = {
 
   // Measurement
   measState: {
-    scaleFactor: 1.0,
+    type: '3d',
     enabled: false,
-    fontSize: '16px',
+    fontSize: '24pt',
     color: '#00ff00',
-    markerRadius: 0.01,
+    markerRadius: 0.02,
     lineWidth: 0.005,
     unit: 'metric',
     clear: false,

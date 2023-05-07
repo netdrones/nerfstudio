@@ -303,6 +303,8 @@ export default function ViewerWindow(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWebsocketConnected]);
 
+  const measType = useSelector((state) => state.measState.type);
+
   return (
     <>
       <RenderWindow />
@@ -317,8 +319,8 @@ export default function ViewerWindow(props) {
       <div className="ViewerWindow-render-crop-container">
         <div className="ViewerWindow-render-crop" style={crop_style} />
       </div>
-      <MeasureTool2D sceneTree={sceneTree} />
-      {/* <MeasureTool sceneTree={sceneTree} /> */}
+      {measType === '2d' && <MeasureTool2D sceneTree={sceneTree} />}
+      {measType === '3d' && <MeasureTool sceneTree={sceneTree} />}
     </>
   );
 }

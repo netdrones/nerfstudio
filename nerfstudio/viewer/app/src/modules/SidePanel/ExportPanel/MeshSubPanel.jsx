@@ -5,6 +5,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 
 import { Button } from '@mui/material';
+import {
+  ViserWebSocketContext,
+  sendWebsocketMessage,
+} from '../../WebSocket/ViserWebSocket';
 
 function get_normal_outputs(output_options) {
   // Get a list of normal outputs from the Model
@@ -30,6 +34,7 @@ export default function MeshSubPanel(props) {
   const store = useStoreContext();
 
   const dispatch = useDispatch();
+  const viser_websocket = React.useContext(ViserWebSocketContext);
 
   // redux store state
   const config_base_dir = useSelector(
@@ -174,6 +179,28 @@ export default function MeshSubPanel(props) {
     navigator.clipboard.writeText(cmd);
   };
 
+  const handleDownload = React.useCallback(() => {
+    // TODO:
+    sendWebsocketMessage(viser_websocket, {
+      type: 'ExportMeshMessage',
+      method: controlValues.mesh_method_options,
+      numFaces: controlValues.numFaces,
+      textureResolution: controlValues.textureResolution,
+      numPoints: controlValues.numPoints,
+      removeOutliners: getPythonBool(controlValues.removeOutliers),
+      useBoundingBox: getPythonBool(controlValues.clippingEnabled),
+      boundingBoxMin: [bbox_min[0], bbox_min[1], bbox_min[2]],
+      boundingBoxMax: [bbox_max[0], bbox_max[1], bbox_max[2]],
+      useBoundingBox: controlValues.useBoundingBox,
+      center: controlValues.center,
+    });
+  }, [viser_websocket, controlValues]);
+
+  const handleImportToScene = React.useCallback(() => {
+    // TODO:
+    handleDownload();
+  }, [controlValues]);
+
   useEffect(() => {
     update_box_center(clippingCenter);
     update_box_scale(clippingScale);
@@ -208,6 +235,14 @@ export default function MeshSubPanel(props) {
             onClick={handleCopy}
           >
             Copy Command
+          </Button>
+        </div>
+        <div className="ExportModal-button">
+          <Button variant="outlined" onClick={handleDownload}>
+            Download
+          </Button>
+          <Button variant="outlined" onClick={handleImportToScene}>
+            Add to scene
           </Button>
         </div>
       </>

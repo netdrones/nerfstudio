@@ -451,6 +451,8 @@ $viewer_button_size: 50px;
 
 .ExportModal-button {
   // margin: 15px;
+  display: flex;
+  justify-content: space-evenly;
   padding: 20px;
 }
 
