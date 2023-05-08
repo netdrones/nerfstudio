@@ -8,11 +8,12 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial';
 
 const MEASUREMENT_NAME = 'Measurement';
-const IMPORTED_OBJECT_NAME = 'Import';
 const MEAS_ORIGIN_MARKER_NAME = 'Measurement-Origin';
 const MEAS_END_MARKER_NAME = 'Measurement-End';
 const MEAS_LINE_NAME = 'Measurement-Line';
 const MEAS_LABEL_NAME = 'Measurement-Label';
+
+const USER_SCENE_NAME = 'User Scene';
 
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
@@ -200,7 +201,7 @@ export default function MeasureTool(props) {
       camera_controls.enabled = false;
 
       // FIXME: Add NeRF objects that Raycaster detects
-      const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
+      const node = sceneTree.find_no_create([USER_SCENE_NAME]);
       if (node) {
         setPickableObjects([node.object]);
       }

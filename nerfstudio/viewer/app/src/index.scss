@@ -457,9 +457,13 @@ $viewer_button_size: 50px;
 }
 
 // ------------------------------------
-// Import Panel sytling
+// Outliner Pnael styling
 
-.ImportPanel-props {
+.OutlinerPanel-props {
+  padding-top: 10px;
+}
+
+.OutlinerPanel-navigator {
   padding-top: 10px;
 }
 

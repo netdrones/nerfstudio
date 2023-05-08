@@ -91,12 +91,12 @@ export function get_scene_tree() {
   camera_controls.saveState();
 
   // Orbit Control Gizmo
-  const orbitControls = new OrbitControls(main_camera, renderer.domElement);
-  const orbitControlsGizmo = new OrbitControlsGizmo(orbitControls, {
-    size: 100,
-    padding: 8,
-  });
-  document.body.appendChild(orbitControlsGizmo.domElement);
+  // const orbitControls = new OrbitControls(main_camera, renderer.domElement);
+  // const orbitControlsGizmo = new OrbitControlsGizmo(orbitControls, {
+  //   size: 100,
+  //   padding: 8,
+  // });
+  // document.body.appendChild(orbitControlsGizmo.domElement);
 
   const keyMap = [];
   const moveSpeed = 0.008;
