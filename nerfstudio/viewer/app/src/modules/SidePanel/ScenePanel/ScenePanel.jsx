@@ -22,8 +22,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
-
-const IMPORTED_OBJECT_NAME = 'Import';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
 export const snap_to_camera = (sceneTree, camera, matrix) => {
   const mat = new THREE.Matrix4();
@@ -241,120 +240,6 @@ export default function ScenePanel(props) {
     sceneTree.set_object_from_path(['Viewer Up Vector'], line);
   };
 
-  // Import
-
-  const inputFileRef = React.useRef(null);
-  const onClickImport = (evt) => {
-    inputFileRef.current.click();
-  };
-  const handleImportFile = (evt) => {
-    evt.stopPropagation();
-    evt.preventDefault();
-
-    for (let file of evt.target.files) {
-      const reader = new FileReader();
-      reader.addEventListener('loadend', (evt) => {
-        const blob = reader.result;
-        if (!blob) return;
-
-        if (file.name.match(/.*\.fbx$/gi)) {
-          const loader = new FBXLoader();
-          const geom = loader.parse(blob);
-          const mat = new THREE.MeshPhongMaterial({ color: '#407796' });
-          const mesh = new THREE.Mesh(geom, mat);
-          mesh.name = file.name;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          sceneTree.set_object_from_path(
-            [IMPORTED_OBJECT_NAME, mesh.name],
-            mesh,
-          );
-        } else if (file.name.match(/.*\.ply$/gi)) {
-          const plyLoader = new PLYLoader();
-          const geom = plyLoader.parse(blob);
-          console.log(geom);
-          const mat = new THREE.MeshPhongMaterial({ color: '#407796' });
-          const mesh = new THREE.Mesh(geom, mat);
-          mesh.name = file.name;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          sceneTree.set_object_from_path(
-            [IMPORTED_OBJECT_NAME, mesh.name],
-            mesh,
-          );
-        } else if (file.name.match(/.*\.obj$/gi)) {
-          const texLoader = new THREE.TextureLoader();
-          const texture = texLoader.load('/mesh/material_0.png');
-          texture.wrapS = THREE.RepeatWrapping;
-          texture.wrapT = THREE.RepeatWrapping;
-          texture.magFilter = THREE.NearestFilter;
-          texture.needsUpdate = true;
-
-          const mtlLoader = new MTLLoader();
-          mtlLoader.setResourcePath('/mesh');
-          mtlLoader.load(
-            'material_0.mtl',
-            (mtl) => {
-              mtl.preload();
-              mtl.loadTexture('/mesh/material_0.png');
-              for (const material of Object.values(mtl.materials)) {
-                material.side = THREE.DoubleSide;
-              }
-
-              const objLoader = new OBJLoader();
-              objLoader.setMaterials(mtl);
-              objLoader.load('mesh/mesh.obj', (model) => {
-                model.updateMatrixWorld();
-                // model.scale.set(1, 1, 1);
-                model.position.set(0, 0, 2.5);
-                model.scale.set(6, 6, 6);
-
-                model.traverse((child) => {
-                  if (child instanceof THREE.Mesh) {
-                    child.material.map = texture;
-                  }
-                });
-
-                sceneTree.set_object_from_path(
-                  [IMPORTED_OBJECT_NAME, model.name],
-                  model,
-                );
-              });
-            },
-            (err) => {
-              console.error('material loader error', err);
-            },
-          );
-
-          // const geom = loader.parse(blob);
-          // const mat = new THREE.MeshPhongMaterial({ color: '#407796' });
-          // const mesh = new THREE.Mesh(geom, mat);
-          // mesh.name = file.name;
-          // mesh.castShadow = true;
-          // mesh.receiveShadow = true;
-          // sceneTree.set_object_from_path(
-          //   [IMPORTED_OBJECT_NAME, mesh.name],
-          //   mesh,
-          // );
-        } else if (file.name.match(/.*\.stl/gi)) {
-          const loader = new STLLoader();
-          const geom = loader.parse(blob);
-          const mat = new THREE.MeshPhongMaterial({
-            color: '#407796',
-          });
-          const mesh = new THREE.Mesh(geom, mat);
-          const name = file.name.replace(/.stl/i, '');
-          mesh.name = name;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          sceneTree.set_object_from_path([IMPORTED_OBJECT_NAME, name], mesh);
-          setReload((p) => p + 1);
-        }
-      });
-      reader.readAsBinaryString(file);
-    }
-  };
-
   return (
     <div className="ScenePanel">
       <div className="CameraPanel-top-button">
@@ -368,19 +253,6 @@ export default function ScenePanel(props) {
         </Button>
       </div>
       <ClickableList sceneTree={sceneTree} />
-      <div className="CameraPanel-buttom-buttons">
-        <Button variant="outlined" size="medium" onClick={onClickImport}>
-          Import
-          <input
-            ref={inputFileRef}
-            type="file"
-            name="3D Model File"
-            accept=".obj, .stl, .fbx, .ply"
-            onChange={handleImportFile}
-            hidden
-          />
-        </Button>
-      </div>
     </div>
   );
 }

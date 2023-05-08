@@ -79,6 +79,11 @@ const initialState = {
     unit: 'metric',
     clear: false,
   },
+
+  // Inspector
+  inspectorState: {
+    selected: null,
+  },
 };
 
 // Recursive function to update the state object with new data at a given path

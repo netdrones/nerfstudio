@@ -6,13 +6,19 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
 import { Line2 } from 'three/examples/jsm/lines/Line2';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial';
+import {
+    ViserWebSocketContext,
+    sendWebsocketMessage,
+    makeThrottledMessageSender,
+} from '../WebSocket/ViserWebSocket';
 
 const MEASUREMENT_NAME = 'Measurement';
-const IMPORTED_OBJECT_NAME = 'Import';
 const MEAS_ORIGIN_MARKER_NAME = 'Measurement-Origin';
 const MEAS_END_MARKER_NAME = 'Measurement-End';
 const MEAS_LINE_NAME = 'Measurement-Line';
 const MEAS_LABEL_NAME = 'Measurement-Label';
+
+const USER_SCENE_NAME = 'User Scene';
 
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
@@ -50,10 +56,33 @@ export default function MeasureTool(props) {
       const pointer = new THREE.Vector3();
       const canvas = sceneTree.metadata.renderer.domElement;
       const canvasPos = canvas.getBoundingClientRect();
+      const camera_type = useSelector((state) => state.renderingState.camera_type);
+
+      const render_height = useSelector(
+	(state) => state.renderingState.render_height,
+      );
+      const render_width = useSelector(
+	(state) => state.renderingState.render_width,
+      );
+      const render_aspect = render_width / render_height;
+
       pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
+      sendWebsocketMessage(viser_websocket, {
+	type: 'GetDepthMessage',
+	x_coord: pointer.x,
+	y_coord: pointer.y,
+	aspect: sceneTree.metadata.camera.aspect,
+	render_aspect: render_aspect,
+	fov: sceneTree.metadata.camera.fov,
+	matrix: sceneTree.metadata.camera.matrix.elements,
+	camera_type: camera_type,
+	timestamp: +new Date(),
+      });
+
+      // TODO: Replace with network query
       raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
       const intersects = raycaster.intersectObjects(pickableObjects, true);
       if (intersects.length > 0) {
@@ -132,6 +161,10 @@ export default function MeasureTool(props) {
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
+      // FIXME: implement depth message
+      sendWebsocketMessage(viser_websocket, { type: 'GetDepthMessage' });
+
+      // TODO: replace with network query
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
       if (isMeasuring) {
         raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
@@ -200,7 +233,7 @@ export default function MeasureTool(props) {
       camera_controls.enabled = false;
 
       // FIXME: Add NeRF objects that Raycaster detects
-      const node = sceneTree.find_no_create([IMPORTED_OBJECT_NAME]);
+      const node = sceneTree.find_no_create([USER_SCENE_NAME]);
       if (node) {
         setPickableObjects([node.object]);
       }

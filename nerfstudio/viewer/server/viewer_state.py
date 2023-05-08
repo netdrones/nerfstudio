@@ -53,6 +53,7 @@ from nerfstudio.viewer.viser.messages import (
     CropParamsMessage,
     NerfstudioMessage,
     SaveCheckpointMessage,
+    GetDepthMessage,
     TimeConditionMessage,
     TrainingStateMessage,
 )
@@ -127,6 +128,7 @@ class ViewerState:
 
         self.viser_server.register_handler(TrainingStateMessage, self._handle_training_state_message)
         self.viser_server.register_handler(SaveCheckpointMessage, self._handle_save_checkpoint)
+        self.viser_server.register_handler(GetDepthMessage, self._handle_get_depth)
         self.viser_server.register_handler(CameraMessage, self._handle_camera_update)
         self.viser_server.register_handler(CameraPathOptionsRequest, self._handle_camera_path_option_request)
         self.viser_server.register_handler(CameraPathPayloadMessage, self._handle_camera_path_payload)
@@ -219,6 +221,10 @@ class ViewerState:
         assert isinstance(message, SaveCheckpointMessage)
         if self.trainer is not None:
             self.trainer.save_checkpoint(self.step)
+
+    def _handle_get_depth(self, message: NerfstudioMessage) -> None:
+        """Handle depth request message from viewer."""
+        assert isinstance(message, GetDepthMessage)
 
     def _handle_camera_update(self, message: NerfstudioMessage) -> None:
         """Handle camera update message from viewer."""

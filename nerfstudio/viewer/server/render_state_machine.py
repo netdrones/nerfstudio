@@ -28,6 +28,8 @@ from nerfstudio.utils import colormaps, writer
 from nerfstudio.utils.writer import GLOBAL_BUFFER, EventName, TimeWriter
 from nerfstudio.viewer.server import viewer_utils
 from nerfstudio.viewer.viser.messages import CameraMessage
+from nerfstudio.viewer.server.utils import get_intrinsics_matrix_and_camera_to_world_h
+from nerfstudio.viewer.viser.messages import CameraMessage, GetDepthMessage
 
 if TYPE_CHECKING:
     from nerfstudio.viewer.server.viewer_state import ViewerState
@@ -105,6 +107,72 @@ class RenderStateMachine(threading.Thread):
         if self.state == "high" and self.next_action.action in ("move", "rerender"):
             self.interrupt_render_flag = True
         self.render_trigger.set()
+
+    def _get_depth(self, depth_msg: GetDepthMessage):
+        """Takes 2D mouse position, generates ray, and gets depth value
+
+        Args:
+            depth_msg: the mouse coordinates to query
+        """
+
+        # mouse coordinates
+        x = depth_msg.x_coord
+        y = depth_msg.y_coord
+
+        # get camera rays
+        model = self.viewer.get_model()
+        image_height, image_width = self._calculate_image_res(cam_msg.aspect)
+
+        intrinsics_matrix, camera_to_world_h = get_intrinsics_matrix_and_camera_to_world_h(
+            cam_msg, image_height=image_height, image_width=image_width
+        )
+
+        camera_to_world = camera_to_world_h[:3, :]
+        camera_to_world = torch.stack(
+            [
+                camera_to_world[0, :],
+                camera_to_world[2, :],
+                camera_to_world[1, :],
+            ],
+            dim=0,
+        )
+
+        camera_type_msg = cam_msg.camera_type
+        if camera_type_msg == "perspective":
+            camera_type = CameraType.PERSPECTIVE
+        elif camera_type_msg == "fisheye":
+            camera_type = CameraType.FISHEYE
+        elif camera_type_msg == "equirectangular":
+            camera_type = CameraType.EQUIRECTANGULAR
+        else:
+            camera_type = CameraType.PERSPECTIVE
+
+        camera = Cameras(
+            fx=intrinsics_matrix[0, 0],
+            fy=intrinsics_matrix[1, 1],
+            cx=intrinsics_matrix[0, 2],
+            cy=intrinsics_matrix[1, 2],
+            camera_type=camera_type,
+            camera_to_worlds=camera_to_world[None, ...],
+            times=torch.tensor([self.viewer.control_panel.time], dtype=torch.float32),
+        )
+        camera = camera.to(self.viewer.get_model().device)
+        with (self.viewer.train_lock if self.viewer.train_lock is not None else contextlib.nullcontext()):
+            coords = torch.tensor([[x, y]])
+            camera_ray_bundle = camera.generate_rays(camera_indices=0, coords=coords, aabb_box=self.viewer.get_model().render_aabb)
+
+            with TimeWriter(None, None, write=False) as vis_t:
+                self.viewer.get_model().eval()
+                step = self.viewer.step
+                with torch.no_grad():
+                    outputs = self.viewer.get_model().get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+                self.viewer.get_model().train()
+        num_rays = len(camera_ray_bundle)
+        render_time = vis_t.duration
+        print(outputs)
+        breakpoint()
+
+        return outputs
 
     def _render_img(self, cam_msg: CameraMessage):
         """Takes the current camera, generates rays, and renders the image
@@ -229,7 +297,7 @@ class RenderStateMachine(threading.Thread):
         selected_output = (selected_output * 255).type(torch.uint8)
 
         self.viewer.viser_server.set_background_image(
-            selected_output.cpu().numpy(),
+           selected_output.cpu().numpy(),
             file_format=self.viewer.config.image_format,
             quality=self.viewer.config.jpeg_quality,
         )
