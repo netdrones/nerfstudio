@@ -225,6 +225,7 @@ class ViewerState:
     def _handle_get_depth(self, message: NerfstudioMessage) -> None:
         """Handle depth request message from viewer."""
         assert isinstance(message, GetDepthMessage)
+        self.depth_query = message
 
     def _handle_camera_update(self, message: NerfstudioMessage) -> None:
         """Handle camera update message from viewer."""

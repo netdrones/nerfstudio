@@ -1,6 +1,6 @@
-import * as React from 'react';
 import * as THREE from 'three';
 
+import React, { useContext } from 'react';
 import { useSelector } from 'react-redux';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
 import { Line2 } from 'three/examples/jsm/lines/Line2';
@@ -9,7 +9,6 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial';
 import {
     ViserWebSocketContext,
     sendWebsocketMessage,
-    makeThrottledMessageSender,
 } from '../WebSocket/ViserWebSocket';
 
 const MEASUREMENT_NAME = 'Measurement';
@@ -26,6 +25,17 @@ export default function MeasureTool(props) {
   const renderer = sceneTree.metadata.renderer;
   const camera_controls = sceneTree.metadata.camera_controls;
   const raycaster = new THREE.Raycaster();
+
+  const viser_websocket = useContext(ViserWebSocketContext);
+  const camera_type = useSelector((state) => state.renderingState.camera_type);
+
+  const render_height = useSelector(
+    (state) => state.renderingState.render_height,
+  );
+  const render_width = useSelector(
+    (state) => state.renderingState.render_width,
+  );
+  const render_aspect = render_width / render_height;
 
   const [isMeasuring, setMeasuring] = React.useState(false);
   const [referencePoint, setReferencePoint] = React.useState(null);
@@ -56,8 +66,8 @@ export default function MeasureTool(props) {
       const pointer = new THREE.Vector3();
       const canvas = sceneTree.metadata.renderer.domElement;
       const canvasPos = canvas.getBoundingClientRect();
-      const camera_type = useSelector((state) => state.renderingState.camera_type);
 
+      /*
       const render_height = useSelector(
 	(state) => state.renderingState.render_height,
       );
@@ -65,6 +75,7 @@ export default function MeasureTool(props) {
 	(state) => state.renderingState.render_width,
       );
       const render_aspect = render_width / render_height;
+      */
 
       pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
       pointer.y =
@@ -75,10 +86,10 @@ export default function MeasureTool(props) {
 	x_coord: pointer.x,
 	y_coord: pointer.y,
 	aspect: sceneTree.metadata.camera.aspect,
-	render_aspect: render_aspect,
+	render_aspect,
 	fov: sceneTree.metadata.camera.fov,
 	matrix: sceneTree.metadata.camera.matrix.elements,
-	camera_type: camera_type,
+	camera_type,
 	timestamp: +new Date(),
       });
 
