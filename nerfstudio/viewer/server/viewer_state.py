@@ -123,6 +123,7 @@ class ViewerState:
         self._prev_train_state: Literal["training", "paused", "completed"] = "training"
 
         self.camera_message = None
+        self.depth_message = None
 
         self.viser_server = ViserServer(host=config.websocket_host, port=websocket_port)
 
@@ -225,7 +226,8 @@ class ViewerState:
     def _handle_get_depth(self, message: NerfstudioMessage) -> None:
         """Handle depth request message from viewer."""
         assert isinstance(message, GetDepthMessage)
-        self.depth_query = message
+        self.depth_message = message
+        self.render_statemachine.action(RenderAction("depth", self.depth_message))
 
     def _handle_camera_update(self, message: NerfstudioMessage) -> None:
         """Handle camera update message from viewer."""

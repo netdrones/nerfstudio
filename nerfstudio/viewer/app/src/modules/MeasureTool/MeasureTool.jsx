@@ -172,9 +172,6 @@ export default function MeasureTool(props) {
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
-      // FIXME: implement depth message
-      sendWebsocketMessage(viser_websocket, { type: 'GetDepthMessage' });
-
       // TODO: replace with network query
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
       if (isMeasuring) {

@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from nerfstudio.viewer.server.viewer_state import ViewerState
 
 RenderStates = Literal["low_move", "low_static", "high"]
-RenderActions = Literal["rerender", "move", "static", "step"]
+RenderActions = Literal["rerender", "move", "static", "step", "depth"]
 
 
 @dataclass
@@ -44,9 +44,8 @@ class RenderAction:
 
     action: RenderActions
     """The action to take """
-    cam_msg: CameraMessage
+    cam_msg: Union(CameraMessage, GetDepthMessage)
     """The camera message to render"""
-
 
 class RenderStateMachine(threading.Thread):
     """The render state machine is responsible for deciding how to render the image.
@@ -70,9 +69,12 @@ class RenderStateMachine(threading.Thread):
         self.transitions["low_static"]["static"] = "high"
         self.transitions["low_static"]["step"] = "high"
         self.transitions["low_static"]["move"] = "low_move"
+        self.transitions["low_static"]["depth"] = "high"
         self.transitions["high"]["move"] = "low_move"
         self.transitions["high"]["rerender"] = "low_static"
+        self.transitions["high"]["depth"] = "high"
         self.next_action: Optional[RenderAction] = None
+        self.prev_action: Optional[RenderAction] = None
         self.state: RenderStates = "low_static"
         self.render_trigger = threading.Event()
         self.target_fps = 24
@@ -90,7 +92,7 @@ class RenderStateMachine(threading.Thread):
         if self.next_action is None:
             self.next_action = action
         elif action.action == "step" and (
-            self.state == "low_move" or self.next_action.action in ("move", "static", "rerender")
+            self.state == "low_move" or self.next_action.action in ("move", "static", "rerender", "depth")
         ):
             # ignore steps if:
             #  1. we are in low_moving state
@@ -121,10 +123,10 @@ class RenderStateMachine(threading.Thread):
 
         # get camera rays
         model = self.viewer.get_model()
-        image_height, image_width = self._calculate_image_res(cam_msg.aspect)
+        image_height, image_width = self._calculate_image_res(depth_msg.aspect)
 
         intrinsics_matrix, camera_to_world_h = get_intrinsics_matrix_and_camera_to_world_h(
-            cam_msg, image_height=image_height, image_width=image_width
+            depth_msg, image_height=image_height, image_width=image_width
         )
 
         camera_to_world = camera_to_world_h[:3, :]
@@ -137,7 +139,7 @@ class RenderStateMachine(threading.Thread):
             dim=0,
         )
 
-        camera_type_msg = cam_msg.camera_type
+        camera_type_msg = depth_msg.camera_type
         if camera_type_msg == "perspective":
             camera_type = CameraType.PERSPECTIVE
         elif camera_type_msg == "fisheye":
@@ -165,12 +167,12 @@ class RenderStateMachine(threading.Thread):
                 self.viewer.get_model().eval()
                 step = self.viewer.step
                 with torch.no_grad():
-                    outputs = self.viewer.get_model().get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+                    outputs = self.viewer.get_model().forward(ray_bundle=camera_ray_bundle)
+                    print(camera_ray_bundle)
+                    print(x, y, float(outputs['depth'].cpu()))
                 self.viewer.get_model().train()
         num_rays = len(camera_ray_bundle)
         render_time = vis_t.duration
-        print(outputs)
-        breakpoint()
 
         return outputs
 
@@ -238,7 +240,14 @@ class RenderStateMachine(threading.Thread):
             self.state = self.transitions[self.state][action.action]
             try:
                 with viewer_utils.SetTrace(self.check_interrupt):
-                    outputs = self._render_img(action.cam_msg)
+                    if isinstance(action.cam_msg, CameraMessage):
+                        outputs = self._render_img(action.cam_msg)
+                    elif isinstance(action.cam_msg, GetDepthMessage):
+                        outputs = self._get_depth(action.cam_msg)
+                        self.action(RenderAction("static", self.prev_action.cam_msg))
+                    else:
+                        raise NotImplementedError
+                    self.prev_action = action
             except viewer_utils.IOChangeException:
                 # if we got interrupted, don't send the output to the viewer
                 continue
