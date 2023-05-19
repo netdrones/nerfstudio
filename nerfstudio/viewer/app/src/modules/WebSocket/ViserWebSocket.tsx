@@ -93,6 +93,43 @@ function handleMessage(
       break;
     }
     // Set the hidden state of a GUI input.
+
+    case 'DepthInfoMessage': {
+      dispatch({
+	type: 'write',
+	path: 'measState/o_x',
+	data: message.origins[0],
+      });
+      dispatch({
+	type: 'write',
+	path: 'measState/o_y',
+	data: message.origins[1],
+      });
+      dispatch({
+	type: 'write',
+	path: 'measState/o_z',
+	data: message.origins[2],
+      });
+      dispatch({
+	type: 'write',
+	path: 'measState/d_x',
+	data: message.directions[0],
+      });
+      dispatch({
+	type: 'write',
+	path: 'measState/d_y',
+	data: message.directions[1],
+      });
+      dispatch({
+	type: 'write',
+	path: 'measState/d_z',
+	data: message.directions[2],
+      });
+
+      break;
+    }
+   // Handle depth queries
+
     case 'GuiSetHiddenMessage': {
       const curGuiConfigFromName =
         store.getState().custom_gui.guiConfigFromName;
@@ -127,7 +164,7 @@ function handleMessage(
               ...currentConf,
               value: message.value,
             },
-          },
+         },
         });
         //  To propagate change to the leva element, need to add to the guiSetQueue
         const curSetQueue = store.getState().custom_gui.guiSetQueue;

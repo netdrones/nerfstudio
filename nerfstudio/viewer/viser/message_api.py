@@ -477,6 +477,14 @@ class MessageApi(abc.ABC):
         media_type, base64_data = _encode_image_base64(image, file_format, quality=quality)
         self._queue(messages.BackgroundImageMessage(media_type=media_type, base64_data=base64_data))
 
+    def update_depth(self, message: messages.DepthInfoMessage):
+        """Send depth information server -> client.
+
+        Args:
+            message: The result of the depth query.
+        """
+        self._queue(message)
+
     def send_file_path_info(self, config_base_dir: Path, data_base_dir: Path, export_path_name: str) -> None:
         """Send file path info to the scene.
 

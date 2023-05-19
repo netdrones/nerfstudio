@@ -74,10 +74,16 @@ const initialState = {
     enabled: false,
     fontSize: '24pt',
     color: '#00ff00',
-    markerRadius: 0.02,
+    markerRadius: 0.003,
     lineWidth: 0.005,
     unit: 'metric',
     clear: false,
+    o_x: 0.0,
+    o_y: 0.0,
+    o_z: 0.0,
+    d_x: 0.0,
+    d_y: 0.0,
+    d_z: 0.0,
   },
 
   // Inspector
