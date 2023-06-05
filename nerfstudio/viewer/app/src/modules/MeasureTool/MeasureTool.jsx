@@ -16,7 +16,7 @@ const MEAS_ORIGIN_MARKER_NAME = 'Measurement-Origin';
 const MEAS_END_MARKER_NAME = 'Measurement-End';
 const MEAS_LINE_NAME = 'Measurement-Line';
 const MEAS_LABEL_NAME = 'Measurement-Label';
-
+const MEAS_RAY_NAME = 'Measurement-Ray';
 const USER_SCENE_NAME = 'User Scene';
 
 // https://sbcode.net/threejs/measurements/
@@ -24,7 +24,7 @@ export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
   const renderer = sceneTree.metadata.renderer;
   const camera_controls = sceneTree.metadata.camera_controls;
-  const raycaster = new THREE.Raycaster();
+  // const raycaster = new THREE.Raycaster();
 
   const viser_websocket = useContext(ViserWebSocketContext);
   const camera_type = useSelector((state) => state.renderingState.camera_type);
@@ -55,7 +55,7 @@ export default function MeasureTool(props) {
   const d_z = useSelector((state) => state.measState.d_z);
 
   function getPerpendicularVector(directions) {
-      let v = new THREE.Vector3();
+      const v = new THREE.Vector3();
 
       if (directions.x !== 0 || directions.y !== 0) {
 	  v.set(-directions.y, directions.x, 0);
@@ -67,16 +67,14 @@ export default function MeasureTool(props) {
       return v;
   }
 
-  const createMarker = React.useCallback(
-    (point) => {
+   function createMarker(point) {
       const geom = new THREE.SphereGeometry(markerRadius);
       const mat = new THREE.MeshLambertMaterial({ color });
       const marker = new THREE.Mesh(geom, mat);
       marker.position.copy(point);
+
       return marker;
-    },
-    [color, markerRadius],
-  );
+   }
 
   const sendNerfQuery = React.useCallback(
     (pointer) => {
@@ -111,174 +109,146 @@ export default function MeasureTool(props) {
     [o_x, o_y, o_z, d_x, d_y, d_z],
   );
 
-
   const handleMeasStart = React.useCallback(
     (evt) => {
       evt.preventDefault();
 
+      // Initialize crosshair with offset
+      const crosshairSize = 0.01;
+      const crosshairMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+      const crosshairGeom = new THREE.BufferGeometry();
+      const vertices = new Float32Array([
+	  0, crosshairSize, 0,
+	  0, -crosshairSize, 0,
+	  crosshairSize, 0, 0,
+	  -crosshairSize, 0, 0
+      ]);
+
+      const camera = sceneTree.metadata.camera;
+      crosshairGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      const crosshair = new THREE.LineSegments(crosshairGeom, crosshairMat);
+      camera.add(crosshair);
+      crosshair.renderOrder = 1;
+      crosshair.position.z = -0.5;
+
+      // Get mouse input
       const pointer = new THREE.Vector3();
       const canvas = sceneTree.metadata.renderer.domElement;
       const canvasPos = canvas.getBoundingClientRect();
+      const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
       pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
-      sendNerfQuery(pointer);
-      const [origins, directions] = getNerfPoint();
-      const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
-      // const marker = createMarker(point);
-      // console.log([origins, directions]);
+      camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+      camera.updateProjectionMatrix();
 
-      // marker.name = MEAS_ORIGIN_MARKER_NAME;
-      // measGroup.add(marker);
+      // const offset = new THREE.Object3D();
+      // offset.position.set(0, 0, 0);
+      // camera.add(offset);
+
+      // Get camera rotation + translation
+      const arr = sceneTree.metadata.camera.matrix.elements;
+      const R = new THREE.Matrix3();
+      const origins = new THREE.Vector3();
+      R.set(
+	arr[0], arr[4], arr[8],
+	arr[1], arr[5], arr[9],
+	arr[2], arr[6], arr[10],
+      );
+      origins.set(
+	arr[12], arr[13], arr[14]
+      );
+
+      // Get normal vector to camera plane
+      const forward = new THREE.Vector3(0, 0, -1);
+      const directions = forward.applyMatrix3(R);
+
+      const cameraCoords = new THREE.Vector3(pointer.x, pointer.y, -1);
+      const worldCoords = cameraCoords.unproject(camera);
+
+      const mouse = new THREE.Vector2(pointer.x, pointer.x);
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+
+      /*
+      const raycaster = new THREE.Raycaster();
+      const center = new THREE.Vector3(0, 0, 0.5);
+      center.unproject(camera);
+      const rayDirection = new THREE.Vector3();
+      rayDirection.subVectors(center, camera.position).normalize();
+      raycaster.set(camera.position, rayDirection);
+      */
+
+      const rayOrigin = raycaster.ray.origin;
+      const rayDirection = raycaster.ray.direction;
 
       const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
-      const geometry = new THREE.BufferGeometry().setFromPoints([origins, directions]);
+      const geometry = new THREE.BufferGeometry().setFromPoints([worldCoords, rayDirection]);
       const line = new THREE.Line(geometry, material);
-      line.name = MEAS_LINE_NAME;
+      line.name = MEAS_RAY_NAME;
       line.scale.set(1,1,1);
       line.geometry.computeBoundingSphere();
       measGroup.add(line);
+      const marker = createMarker(worldCoords);
+      marker.name = MEAS_ORIGIN_MARKER_NAME;
+      measGroup.add(marker);
+
 
       /*
-      const dot_geom = new THREE.PlaneGeometry(0.1, 0.1); // Create a small plane geometry for dot
-      const dot_mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
-      const dot = new THREE.Mesh(geometry, material);
-      */
-
-      var cameraPosition = new THREE.Vector3();
-      var targetPos = geometry.boundingSphere.center;
-      var perpVec = getPerpendicularVector(directions);
-
+      const cameraPosition = new THREE.Vector3();
+      const targetPos = geometry.boundingSphere.center;
+      const perpVec = getPerpendicularVector(directions);
       perpVec.normalize();
       cameraPosition.subVectors(targetPos, perpVec);
-      camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-      sceneTree.metadata.camera.lookAt(targetPos);
+      */
 
-      if (!isMeasuring) {
-	// Create a line
-	const rgbColor = new THREE.Color(color);
-	const matLine = new LineMaterial({
-	  color,
-	  linewidth: lineWidth,
-	  dashed: true,
-	  gapSize: 2,
-	  dashSize: 1,
-	  dashScale: 50,
-	  alphaToCoverage: true,
-	});
-	// setReferencePoint(origins);
-
-	// const geomLine = new LineGeometry();
-	// geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
-
-	// const line = new Line2(geomLine,matLine);
-	// line.name = MEAS_LINE_NAME;
-	// line.scale.set(1,1,1);
-	// measGroup.add(line);
-
-	// Create a measurement label
-	const measLabelDiv = document.createElement('div');
-	measLabelDiv.innerText = '0.0m';
-	measLabelDiv.className = 'MeasurementLabel';
-	measLabelDiv.style.fontSize = fontSize;
-	measLabelDiv.style.fontFamily = 'monospace';
-	measLabelDiv.style.fontWeight = 'bold';
-	measLabelDiv.style.color = color;
-
-	// const measLabel = new CSS2DObject(measLabelDiv);
-	// measLabel.position.copy(point);
-	// measLabel.name = 'Measurement-Label';
-	// measGroup.add(measLabel);
-
-	setMeasuring(true);
-      } else {
-	// const labelId = new Date().getTime().toString();
-	// const origin = measGroup.getObjectByName(MEAS_ORIGIN_MARKER_NAME);
-	// origin.name = `${MEAS_ORIGIN_MARKER_NAME}-${labelId}`;
-
-	// const end = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
-	// end.name = `${MEAS_END_MARKER_NAME}-${labelId}`;
-
-	// const line = measGroup.getObjectByName(MEAS_LINE_NAME);
-	// line.name = `${MEAS_LINE_NAME}-${labelId}`;
-
-	// const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
-	// measLabel.name = `${MEAS_LABEL_NAME}-${labelId}`;
-
+      // camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+      // sceneTree.metadata.camera.lookAt(targetPos);
+      //
+      if (isMeasuring) {
 	setMeasuring(false);
-
+      } else {
+	setMeasuring(true);
       }
-
-      // raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
-      // const intersects = raycaster.intersectObjects(pickableObjects, true);
 
       /*
-      if (intersects.length > 0) {
-        const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
-        const point = intersects[0].point;
-        const marker = createMarker(point);
-        marker.name = MEAS_ORIGIN_MARKER_NAME;
-        measGroup.add(marker);
+      const rgbColor = new THREE.Color(color);
+      const matLine = new LineMaterial({
+	color,
+	linewidth: lineWidth,
+	dashed: true,
+	gapSize: 2,
+	dashSize: 1,
+	dashScale: 50,
+	alphaToCoverage: true,
+      });
+      setReferencePoint(marker.position);
 
-        if (!isMeasuring) {
-          // Create a line
-          const rgbColor = new THREE.Color(color);
-          const matLine = new LineMaterial({
-            color,
-            linewidth: lineWidth,
-            dashed: true,
-            gapSize: 2,
-            dashSize: 1,
-            dashScale: 50,
-            alphaToCoverage: true,
-          });
-          setReferencePoint(point);
+      const geomLine = new LineGeometry();
+      geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
 
-          const geomLine = new LineGeometry();
-          geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
+      const dashed_line = new Line2(geomLine,matLine);
+      dashed_line.name = MEAS_LINE_NAME;
+      dashed_line.scale.set(1,1,1);
+      measGroup.add(dashed_line);
 
-          const line = new Line2(geomLine, matLine);
-          line.name = MEAS_LINE_NAME;
-          line.scale.set(1, 1, 1);
-          measGroup.add(line);
+      const measLabelDiv = document.createElement('div');
+      measLabelDiv.innerText = '0.0m';
+      measLabelDiv.className = 'MeasurementLabel';
+      measLabelDiv.style.fontSize = fontSize;
+      measLabelDiv.style.fontFamily = 'monospace';
+      measLabelDiv.style.fontWeight = 'bold';
+      measLabelDiv.style.color = color;
 
-          // Create a measurement label
-          const measLabelDiv = document.createElement('div');
-          measLabelDiv.innerText = '0.0m';
-          measLabelDiv.className = 'MeasurementLabel';
-          measLabelDiv.style.fontSize = fontSize;
-          measLabelDiv.style.fontFamily = 'monospace';
-          measLabelDiv.style.fontWeight = 'bold';
-          measLabelDiv.style.color = color;
-
-          const measLabel = new CSS2DObject(measLabelDiv);
-          measLabel.position.copy(point);
-          measLabel.name = 'Measurement-Label';
-          measGroup.add(measLabel);
-
-          setMeasuring(true);
-        } else {
-          const labelId = new Date().getTime().toString();
-          const origin = measGroup.getObjectByName(MEAS_ORIGIN_MARKER_NAME);
-          origin.name = `${MEAS_ORIGIN_MARKER_NAME}-${labelId}`;
-
-          const end = measGroup.getObjectByName(MEAS_END_MARKER_NAME);
-          end.name = `${MEAS_END_MARKER_NAME}-${labelId}`;
-
-          const line = measGroup.getObjectByName(MEAS_LINE_NAME);
-          line.name = `${MEAS_LINE_NAME}-${labelId}`;
-
-          const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
-          measLabel.name = `${MEAS_LABEL_NAME}-${labelId}`;
-
-          setMeasuring(false);
-        }
-      }
+      const measLabel = new CSS2DObject(measLabelDiv);
+      measLabel.position.copy(marker.position);
+      measLabel.name = 'Measurement-Label';
+      measGroup.add(measLabel);
       */
     },
-    [sceneTree, raycaster, color, fontSize, isMeasuring, pickableObjects],
+    [sceneTree, color, fontSize, isMeasuring, pickableObjects],
   );
 
   const handleMeasMove = React.useCallback(
@@ -294,6 +264,7 @@ export default function MeasureTool(props) {
 
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
       if (isMeasuring) {
+	/*
         raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
         const intersects = raycaster.intersectObjects(pickableObjects, true);
         if (intersects.length > 0) {
@@ -335,11 +306,12 @@ export default function MeasureTool(props) {
           measLabel.element.innerText = d;
           measLabel.position.lerpVectors(v0, v1, 0.5);
         }
+      */
       }
     },
     [
       sceneTree,
-      raycaster,
+      // raycaster,
       isMeasuring,
       pickableObjects,
       referencePoint,
@@ -359,12 +331,14 @@ export default function MeasureTool(props) {
     if (measEnabled) {
       camera_controls.enabled = false;
 
-      // FIXME: Add NeRF objects that Raycaster detects
+      /*
       const node = sceneTree.find_no_create([USER_SCENE_NAME]);
       if (node) {
         setPickableObjects([node.object]);
       }
+      */
       // setPickableObjects(sceneTree.object.children);
+
     } else {
       camera_controls.enabled = true;
 

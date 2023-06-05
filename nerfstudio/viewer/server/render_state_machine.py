@@ -18,27 +18,24 @@ from __future__ import annotations
 import contextlib
 import threading
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, get_args
 
 import torch
-import numpy as np
-from typing_extensions import Literal, get_args
 
 from nerfstudio.cameras.cameras import Cameras, CameraType
-from nerfstudio.cameras.camera_utils import quaternion_from_matrix
 from nerfstudio.model_components.renderers import background_color_override_context
-from nerfstudio.utils import writer
+from nerfstudio.utils import colormaps, writer
 from nerfstudio.utils.writer import GLOBAL_BUFFER, EventName, TimeWriter
 from nerfstudio.viewer.server import viewer_utils
 from nerfstudio.viewer.viser.messages import CameraMessage
 from nerfstudio.viewer.server.utils import get_intrinsics_matrix_and_camera_to_world_h
-from nerfstudio.viewer.viser.messages import CameraMessage, GetDepthMessage, DepthInfoMessage
+from nerfstudio.viewer.viser.messages import CameraMessage
 
 if TYPE_CHECKING:
     from nerfstudio.viewer.server.viewer_state import ViewerState
 
 RenderStates = Literal["low_move", "low_static", "high"]
-RenderActions = Literal["rerender", "move", "static", "step", "depth"]
+RenderActions = Literal["rerender", "move", "static", "step"]
 
 
 @dataclass
@@ -47,8 +44,9 @@ class RenderAction:
 
     action: RenderActions
     """The action to take """
-    cam_msg: Union(CameraMessage, GetDepthMessage)
+    cam_msg: CameraMessage
     """The camera message to render"""
+
 
 class RenderStateMachine(threading.Thread):
     """The render state machine is responsible for deciding how to render the image.
@@ -72,18 +70,16 @@ class RenderStateMachine(threading.Thread):
         self.transitions["low_static"]["static"] = "high"
         self.transitions["low_static"]["step"] = "high"
         self.transitions["low_static"]["move"] = "low_move"
-        self.transitions["low_static"]["depth"] = "high"
         self.transitions["high"]["move"] = "low_move"
         self.transitions["high"]["rerender"] = "low_static"
-        self.transitions["high"]["depth"] = "high"
         self.next_action: Optional[RenderAction] = None
-        self.prev_action: Optional[RenderAction] = None
         self.state: RenderStates = "low_static"
         self.render_trigger = threading.Event()
         self.target_fps = 24
         self.viewer = viewer
         self.interrupt_render_flag = False
         self.daemon = True
+        self.output_keys = {}
 
     def action(self, action: RenderAction):
         """Takes an action and updates the state machine
@@ -94,7 +90,7 @@ class RenderStateMachine(threading.Thread):
         if self.next_action is None:
             self.next_action = action
         elif action.action == "step" and (
-            self.state == "low_move" or self.next_action.action in ("move", "static", "rerender", "depth")
+            self.state == "low_move" or self.next_action.action in ("move", "static", "rerender")
         ):
             # ignore steps if:
             #  1. we are in low_moving state
@@ -113,82 +109,82 @@ class RenderStateMachine(threading.Thread):
         self.render_trigger.set()
 
     def _get_depth(self, depth_msg: GetDepthMessage):
-        """Takes 2D mouse position, generates ray, and gets depth value
+            """Takes 2D mouse position, generates ray, and gets depth value
 
-        Args:
-            depth_msg: the mouse coordinates to query
-        """
+            Args:
+                depth_msg: the mouse coordinates to query
+            """
 
-        model = self.viewer.get_model()
-        image_height, image_width = self._calculate_image_res(depth_msg.aspect)
+            model = self.viewer.get_model()
+            image_height, image_width = self._calculate_image_res(depth_msg.aspect)
 
-        # convert coordinates from client mouse space to camera space
-        x = (depth_msg.x_coord + 1) / 2
-        y = -(depth_msg.y_coord - 1) / 2
-        v = x * image_width
-        u = y * image_height
+            # convert coordinates from client mouse space to camera space
+            x = (depth_msg.x_coord + 1) / 2
+            y = -(depth_msg.y_coord - 1) / 2
+            v = x * image_width
+            u = y * image_height
 
-        intrinsics_matrix, camera_to_world_h = get_intrinsics_matrix_and_camera_to_world_h(
-            depth_msg, image_height=image_height, image_width=image_width
-        )
+            intrinsics_matrix, camera_to_world_h = get_intrinsics_matrix_and_camera_to_world_h(
+                depth_msg, image_height=image_height, image_width=image_width
+            )
 
-        camera_to_world = camera_to_world_h[:3, :]
-        camera_to_world = torch.stack(
-            [
-                camera_to_world[0, :],
-                camera_to_world[2, :],
-                camera_to_world[1, :],
-            ],
-            dim=0,
-        )
+            camera_to_world = camera_to_world_h[:3, :]
+            camera_to_world = torch.stack(
+                [
+                    camera_to_world[0, :],
+                    camera_to_world[2, :],
+                    camera_to_world[1, :],
+                ],
+                dim=0,
+            )
 
-        camera_type_msg = depth_msg.camera_type
-        if camera_type_msg == "perspective":
-            camera_type = CameraType.PERSPECTIVE
-        elif camera_type_msg == "fisheye":
-            camera_type = CameraType.FISHEYE
-        elif camera_type_msg == "equirectangular":
-            camera_type = CameraType.EQUIRECTANGULAR
-        else:
-            camera_type = CameraType.PERSPECTIVE
+            camera_type_msg = depth_msg.camera_type
+            if camera_type_msg == "perspective":
+                camera_type = CameraType.PERSPECTIVE
+            elif camera_type_msg == "fisheye":
+                camera_type = CameraType.FISHEYE
+            elif camera_type_msg == "equirectangular":
+                camera_type = CameraType.EQUIRECTANGULAR
+            else:
+                camera_type = CameraType.PERSPECTIVE
 
-        camera = Cameras(
-            fx=intrinsics_matrix[0, 0],
-            fy=intrinsics_matrix[1, 1],
-            cx=intrinsics_matrix[0, 2],
-            cy=intrinsics_matrix[1, 2],
-            camera_type=camera_type,
-            camera_to_worlds=camera_to_world[None, ...],
-            times=torch.tensor([self.viewer.control_panel.time], dtype=torch.float32),
-        )
-        camera = camera.to(self.viewer.get_model().device)
+            camera = Cameras(
+                fx=intrinsics_matrix[0, 0],
+                fy=intrinsics_matrix[1, 1],
+                cx=intrinsics_matrix[0, 2],
+                cy=intrinsics_matrix[1, 2],
+                camera_type=camera_type,
+                camera_to_worlds=camera_to_world[None, ...],
+                times=torch.tensor([self.viewer.control_panel.time], dtype=torch.float32),
+            )
+            camera = camera.to(self.viewer.get_model().device)
 
-        with (self.viewer.train_lock if self.viewer.train_lock is not None else contextlib.nullcontext()):
-            coords = torch.tensor([u,v])
-            camera_ray_bundle = camera.generate_rays(camera_indices=0, coords=coords, aabb_box=self.viewer.get_model().render_aabb)
+            with (self.viewer.train_lock if self.viewer.train_lock is not None else contextlib.nullcontext()):
+                coords = torch.tensor([u,v])
+                camera_ray_bundle = camera.generate_rays(camera_indices=0, coords=coords, aabb_box=self.viewer.get_model().render_aabb)
 
-            # X, Y, Z --> R, G, B
-            R = camera.camera_to_worlds[0][:, ..., :3].cpu()  # (3 x 3)
-            t = camera_ray_bundle.origins.cpu()
-            norm = R @ torch.tensor([0,0,-1]).type(torch.FloatTensor)
+                # X, Y, Z --> R, G, B
+                R = camera.camera_to_worlds[0][:, ..., :3].cpu()  # (3 x 3)
+                t = camera_ray_bundle.origins.cpu()
+                norm = R @ torch.tensor([0,0,-1]).type(torch.FloatTensor)
 
-            with TimeWriter(None, None, write=False) as vis_t:
-                self.viewer.get_model().eval()
-                step = self.viewer.step
-                with torch.no_grad():
-                    depth = self.viewer.get_model().forward(ray_bundle=camera_ray_bundle)['depth'].cpu()
-                    # point = origins.cpu() + depth * directions.cpu()
-                    origins = camera_ray_bundle.origins
-                    # outputs = origins.cpu()[0], origins.cpu()[1], origins.cpu()[2]
-                    # p_c = torch.tensor([o_c.cpu()[0] + 1.0, o_c.cpu()[1] + 1.0, o_c.cpu()[2]])
-                    outputs = origins, norm
-                self.viewer.get_model().train()
+                with TimeWriter(None, None, write=False) as vis_t:
+                    self.viewer.get_model().eval()
+                    step = self.viewer.step
+                    with torch.no_grad():
+                        depth = self.viewer.get_model().forward(ray_bundle=camera_ray_bundle)['depth'].cpu()
+                        # point = origins.cpu() + depth * directions.cpu()
+                        origins = camera_ray_bundle.origins
+                        # outputs = origins.cpu()[0], origins.cpu()[1], origins.cpu()[2]
+                        # p_c = torch.tensor([o_c.cpu()[0] + 1.0, o_c.cpu()[1] + 1.0, o_c.cpu()[2]])
+                        outputs = origins, norm
+                    self.viewer.get_model().train()
 
-        return outputs
+            return outputs
 
     def _render_img(self, cam_msg: CameraMessage):
-        """Takes the current camera, generates rays, and renders the image
-s
+        """Takes the current camera, generates rays, and renders the iamge
+
         Args:
             cam_msg: the camera message to render
         """
@@ -206,7 +202,7 @@ s
         camera: Optional[Cameras] = self.viewer.get_camera(image_height, image_width)
         assert camera is not None, "render called before viewer connected"
 
-        with (self.viewer.train_lock if self.viewer.train_lock is not None else contextlib.nullcontext()):
+        with self.viewer.train_lock if self.viewer.train_lock is not None else contextlib.nullcontext():
             camera_ray_bundle = camera.generate_rays(camera_indices=0, aabb_box=self.viewer.get_model().render_aabb)
 
             with TimeWriter(None, None, write=False) as vis_t:
@@ -229,9 +225,10 @@ s
                 self.viewer.get_model().train()
         num_rays = len(camera_ray_bundle)
         render_time = vis_t.duration
-        writer.put_time(
-            name=EventName.VIS_RAYS_PER_SEC, duration=num_rays / render_time, step=step, avg_over_steps=True
-        )
+        if writer.is_initialized():
+            writer.put_time(
+                name=EventName.VIS_RAYS_PER_SEC, duration=num_rays / render_time, step=step, avg_over_steps=True
+            )
         self.viewer.viser_server.send_status_message(eval_res=f"{image_height}x{image_width}px", step=step)
         return outputs
 
@@ -256,21 +253,13 @@ s
                         outputs = DepthInfoMessage(origins=origins,
                                                    directions=directions,
                                                    camera_type=action.cam_msg.camera_type)
-                    else:
-                        raise NotImplementedError
-                    self.prev_action = action
             except viewer_utils.IOChangeException:
                 # if we got interrupted, don't send the output to the viewer
                 continue
-            if isinstance(action.cam_msg, CameraMessage):
-                self._send_output_to_viewer(outputs)
-                # if we rendered a static low res, we need to self-trigger a static high-res
-                if self.state == "low_static":
-                    self.action(RenderAction("static", action.cam_msg))
-            elif isinstance(action.cam_msg, GetDepthMessage):
-                self._send_depth_to_viewer(outputs)
-            else:
-                raise NotImplementedError
+            self._send_output_to_viewer(outputs)
+            # if we rendered a static low res, we need to self-trigger a static high-res
+            if self.state == "low_static":
+                self.action(RenderAction("static", action.cam_msg))
 
     def check_interrupt(self, frame, event, arg):
         """Raises interrupt when flag has been set and not already on lowest resolution.
@@ -288,7 +277,11 @@ s
         Args:
             outputs: the dictionary of outputs to choose from, from the model
         """
-        self.viewer.control_panel.update_output_options(list(outputs.keys()))
+        output_keys = set(outputs.keys())
+        if self.output_keys != output_keys:
+            self.output_keys = output_keys
+            self.viewer.viser_server.send_output_options_message(list(outputs.keys()))
+            self.viewer.control_panel.update_output_options(list(outputs.keys()))
 
         output_render = self.viewer.control_panel.output_render
         self.viewer.update_colormap_options(
@@ -301,7 +294,11 @@ s
 
         if self.viewer.control_panel.split:
             split_output_render = self.viewer.control_panel.split_output_render
+<<<<<<< HEAD
             self.viewer.update_split_colormap_options(
+=======
+            self.viewer.update_colormap_options(
+>>>>>>> 80f7fbb2 (fix: port camera + ray calculations to frontend)
                 dimensions=outputs[split_output_render].shape[-1], dtype=outputs[split_output_render].dtype
             )
             split_output = colormaps.apply_colormap(
@@ -318,14 +315,10 @@ s
         selected_output = (selected_output * 255).type(torch.uint8)
 
         self.viewer.viser_server.set_background_image(
-           selected_output.cpu().numpy(),
+            selected_output.cpu().numpy(),
             file_format=self.viewer.config.image_format,
             quality=self.viewer.config.jpeg_quality,
         )
-
-    def _send_depth_to_viewer(self, outputs: DepthInfoMessage):
-        """Sends depth information to the viewer"""
-        self.viewer.viser_server.update_depth(outputs)
 
     def _calculate_image_res(self, aspect_ratio: float) -> Tuple[int, int]:
         """Calculate the maximum image height that can be rendered in the time budget
@@ -345,7 +338,7 @@ s
                 image_width = max_res
                 image_height = int(image_width / aspect_ratio)
         elif self.state in ("low_move", "low_static"):
-            if EventName.VIS_RAYS_PER_SEC.value in GLOBAL_BUFFER["events"]:
+            if writer.is_initialized() and EventName.VIS_RAYS_PER_SEC.value in GLOBAL_BUFFER["events"]:
                 vis_rays_per_sec = GLOBAL_BUFFER["events"][EventName.VIS_RAYS_PER_SEC.value]["avg"]
             else:
                 vis_rays_per_sec = 100000

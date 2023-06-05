@@ -21,7 +21,7 @@ import dataclasses
 from typing import Any, Literal, Optional, Tuple, List
 
 import viser.infra
-from typing_extensions import Literal, override
+from typing_extensions import override
 
 
 class NerfstudioMessage(viser.infra.Message):
@@ -238,7 +238,6 @@ class StatusMessage(NerfstudioMessage):
     step: int
     """ Current step """
 
-
 @dataclasses.dataclass
 class SaveCheckpointMessage(NerfstudioMessage):
     """Save checkpoint message."""
@@ -278,6 +277,7 @@ class DepthInfoMessage(NerfstudioMessage):
 class UseTimeConditioningMessage(NerfstudioMessage):
     """Use time conditioning message."""
 
+
 @dataclasses.dataclass
 class TimeConditionMessage(NerfstudioMessage):
     """Time conditioning message."""
@@ -304,40 +304,5 @@ class OutputOptionsMessage(NerfstudioMessage):
 class ExportMeshMessage(NerfstudioMessage):
     """Export NeRF model as mesh message."""
 
-    method: Literal['tsdf', 'poisson']
-    """Mesh method"""
-
-    numFaces: int
-    """Number of faces"""
-
-    textureResolution: int
-    """"""
-
-    numPoints: int
-    """Number of points"""
-
-    removeOutliners: bool
-    """Remove outlines if True"""
-
-    clipping: bool
-    """Clipped by bounding box if True"""
-
-    boundingBoxMin: Tuple[float, float, float]
-    """Min bounding box"""
-
-    boundingBoxMax: Tuple[float, float, float]
-    """Max bounding box"""
-
-    center: Tuple[float, float, float]
-    """Center coordinate"""
-
-
-@dataclasses.dataclass
-class DownloadFileMessage(NerfstudioMessage):
-    """Download a file message."""
-
-    name: str
-    """Name of the file"""
-
-    data: str
-    """A binary data of the file"""
+    options: Any
+    """ List of output option strings"""
