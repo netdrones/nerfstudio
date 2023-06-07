@@ -19,12 +19,15 @@ const MEAS_LABEL_NAME = 'Measurement-Label';
 const MEAS_RAY_NAME = 'Measurement-Ray';
 const USER_SCENE_NAME = 'User Scene';
 
+const CROSSHAIR_NAME = 'Crosshair';
+const GUIDE_LINE_NAME = 'Guide-Line';
+const MEAS_SELECTOR_NAME = 'Selector';
+
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
   const renderer = sceneTree.metadata.renderer;
   const camera_controls = sceneTree.metadata.camera_controls;
-  // const raycaster = new THREE.Raycaster();
 
   const viser_websocket = useContext(ViserWebSocketContext);
   const camera_type = useSelector((state) => state.renderingState.camera_type);
@@ -109,6 +112,25 @@ export default function MeasureTool(props) {
     [o_x, o_y, o_z, d_x, d_y, d_z],
   );
 
+  function getCameraRay(camera) {
+
+    const startPoint = new THREE.Vector3();
+    const endPoint = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const markerCoord = new THREE.Vector3();
+
+    camera.getWorldPosition(startPoint);
+    camera.localToWorld(endPoint.set(0, 0, -9999)).add(startPoint);
+
+    direction.subVectors(endPoint, startPoint);
+    direction.normalize();
+    direction.multiplyScalar(0.8);
+
+    markerCoord.addVectors(startPoint, direction);
+
+    return [startPoint, endPoint, direction, markerCoord]
+  }
+
   const handleMeasStart = React.useCallback(
     (evt) => {
       evt.preventDefault();
@@ -116,40 +138,31 @@ export default function MeasureTool(props) {
       const camera = sceneTree.metadata.camera;
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
-      // Camera ray vector calculation
-      const startPoint = new THREE.Vector3();
-      const endPoint = new THREE.Vector3();
-      camera.getWorldPosition(startPoint);
-      camera.localToWorld(endPoint.set(0, 0, -9999)).add(startPoint);
+      // Place marker in scene along camera far Z-plane
+      if (!isMeasuring) {
+	const [startPoint, endPoint, direction, markerCoord] = getCameraRay(camera);
 
-      // Place marker in scene
-      const direction = new THREE.Vector3();
-      const markerCoord = new THREE.Vector3();
-      direction.subVectors(endPoint, startPoint);
-      direction.normalize();
-      direction.multiplyScalar(1.5);
-      markerCoord.addVectors(startPoint, direction);
-      const marker = createMarker(markerCoord);
-      measGroup.add(marker);
+	// Create line that corresponds to vector raycast
+	const lineGeometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
+	const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+	const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
+	const marker = createMarker(markerCoord);
 
-      // Create line that corresponds to vector raycast
-      const lineGeometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-      const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
-      measGroup.add(lineMesh);
+	lineMesh.name = GUIDE_LINE_NAME;
+	marker.name = MEAS_SELECTOR_NAME;
+	measGroup.add(lineMesh);
+	measGroup.add(marker);
 
-      // Turn the camera 90 degrees to select depth
-      const perpVec = getPerpendicularVector(direction);
-      perpVec.normalize();
-      const cameraPosition = marker.position.clone().addScaledVector(perpVec, 0.75);
-      console.log(cameraPosition);
-
-      // camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-      // sceneTree.metadata.camera.lookAt(marker.position);
-
-      if (isMeasuring) {
-	setMeasuring(false);
-      } else {
+	// Turn the camera 90 degrees to select depth
+	const cameraOffset = new THREE.Vector3();
+	const cameraPosition = new THREE.Vector3();
+	const zAxis = new THREE.Vector3(0, 0, 1);
+	cameraOffset.crossVectors(direction, zAxis);
+	cameraPosition.addVectors(marker.position, cameraOffset.multiplyScalar(1));
+	cameraPosition.z += 0.2;
+	camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+	sceneTree.metadata.camera.lookAt(marker.position);
+	camera.updateMatrixWorld(true);
 	setMeasuring(true);
       }
 
@@ -161,7 +174,9 @@ export default function MeasureTool(props) {
     (evt) => {
       evt.preventDefault();
 
-      const pointer = new THREE.Vector3();
+      // Get mouse coordinates
+      const pointer = new THREE.Vector2();
+      const camera = sceneTree.metadata.camera;
       const canvas = sceneTree.metadata.renderer.domElement;
       const canvasPos = canvas.getBoundingClientRect();
       pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
@@ -169,8 +184,22 @@ export default function MeasureTool(props) {
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
+      const line = measGroup.getObjectByName(GUIDE_LINE_NAME);
+      const marker = measGroup.getObjectByName(MEAS_SELECTOR_NAME);
+
+      // Project marker onto the line
       if (isMeasuring) {
-	/*
+	const raycaster = new THREE.Raycaster();
+	const linePts = line.geometry.attributes.position.array;
+	const startPoint = new THREE.Vector3(linePts[0]);
+	const endPoint = new THREE.Vector3(linePts[3]);
+	raycaster.setFromCamera(pointer, camera);
+	const closestPoint = raycaster.ray.closestPointToPoint(startPoint, endPoint);
+	marker.position.copy(closestPoint);
+      }
+
+      /*
+      if (isMeasuring) {
         raycaster.setFromCamera(pointer, sceneTree.metadata.camera);
         const intersects = raycaster.intersectObjects(pickableObjects, true);
         if (intersects.length > 0) {
@@ -212,8 +241,8 @@ export default function MeasureTool(props) {
           measLabel.element.innerText = d;
           measLabel.position.lerpVectors(v0, v1, 0.5);
         }
-      */
       }
+      */
     },
     [
       sceneTree,
@@ -235,28 +264,30 @@ export default function MeasureTool(props) {
 
   React.useEffect(() => {
     if (measEnabled) {
-
-      // Create crosshair
-      const camera = sceneTree.metadata.camera;
-      const crosshairGeometry = new THREE.CircleGeometry(0.02, 32);
-      const crosshairMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-      const crosshairMesh = new THREE.Mesh(crosshairGeometry, crosshairMaterial);
-      crosshairMesh.position.set(0, 0, -10);
-      crosshairMesh.renderOrder = 1;
-      camera.add(crosshairMesh);
-
       camera_controls.enabled = false;
 
-      /*
-      const node = sceneTree.find_no_create([USER_SCENE_NAME]);
-      if (node) {
-        setPickableObjects([node.object]);
+      // Create crosshair
+      if (!isMeasuring) {
+	const camera = sceneTree.metadata.camera;
+	const crosshairGeometry = new THREE.CircleGeometry(0.02, 32);
+	const crosshairMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+	const crosshairMesh = new THREE.Mesh(crosshairGeometry, crosshairMaterial);
+	crosshairMesh.position.set(0, 0, -10);
+	crosshairMesh.renderOrder = 1;
+	crosshairMesh.name = CROSSHAIR_NAME;
+	camera.add(crosshairMesh);
       }
-      */
-      // setPickableObjects(sceneTree.object.children);
 
     } else {
       camera_controls.enabled = true;
+
+      // Remove crosshair
+      if (!isMeasuring) {
+	const crosshairMesh = sceneTree.metadata.camera.getObjectByName(CROSSHAIR_NAME);
+	if (crosshairMesh) {
+	  crosshairMesh.parent.remove(crosshairMesh);
+	}
+      }
 
       // Make sure to cancel incomplete measurement
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
