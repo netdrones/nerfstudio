@@ -113,140 +113,46 @@ export default function MeasureTool(props) {
     (evt) => {
       evt.preventDefault();
 
-      // Initialize crosshair with offset
-      const crosshairSize = 0.01;
-      const crosshairMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
-      const crosshairGeom = new THREE.BufferGeometry();
-      const vertices = new Float32Array([
-	  0, crosshairSize, 0,
-	  0, -crosshairSize, 0,
-	  crosshairSize, 0, 0,
-	  -crosshairSize, 0, 0
-      ]);
-
       const camera = sceneTree.metadata.camera;
-      crosshairGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-      const crosshair = new THREE.LineSegments(crosshairGeom, crosshairMat);
-      camera.add(crosshair);
-      crosshair.renderOrder = 1;
-      crosshair.position.z = -0.5;
-
-      // Get mouse input
-      const pointer = new THREE.Vector3();
-      const canvas = sceneTree.metadata.renderer.domElement;
-      const canvasPos = canvas.getBoundingClientRect();
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
-      pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
-      pointer.y =
-        -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
+      // Camera ray vector calculation
+      const startPoint = new THREE.Vector3();
+      const endPoint = new THREE.Vector3();
+      camera.getWorldPosition(startPoint);
+      camera.localToWorld(endPoint.set(0, 0, -9999)).add(startPoint);
 
-      camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
-      camera.updateProjectionMatrix();
-
-      // const offset = new THREE.Object3D();
-      // offset.position.set(0, 0, 0);
-      // camera.add(offset);
-
-      // Get camera rotation + translation
-      const arr = sceneTree.metadata.camera.matrix.elements;
-      const R = new THREE.Matrix3();
-      const origins = new THREE.Vector3();
-      R.set(
-	arr[0], arr[4], arr[8],
-	arr[1], arr[5], arr[9],
-	arr[2], arr[6], arr[10],
-      );
-      origins.set(
-	arr[12], arr[13], arr[14]
-      );
-
-      // Get normal vector to camera plane
-      const forward = new THREE.Vector3(0, 0, -1);
-      const directions = forward.applyMatrix3(R);
-
-      const cameraCoords = new THREE.Vector3(pointer.x, pointer.y, -1);
-      const worldCoords = cameraCoords.unproject(camera);
-
-      const mouse = new THREE.Vector2(pointer.x, pointer.x);
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, camera);
-
-      /*
-      const raycaster = new THREE.Raycaster();
-      const center = new THREE.Vector3(0, 0, 0.5);
-      center.unproject(camera);
-      const rayDirection = new THREE.Vector3();
-      rayDirection.subVectors(center, camera.position).normalize();
-      raycaster.set(camera.position, rayDirection);
-      */
-
-      const rayOrigin = raycaster.ray.origin;
-      const rayDirection = raycaster.ray.direction;
-
-      const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
-      const geometry = new THREE.BufferGeometry().setFromPoints([worldCoords, rayDirection]);
-      const line = new THREE.Line(geometry, material);
-      line.name = MEAS_RAY_NAME;
-      line.scale.set(1,1,1);
-      line.geometry.computeBoundingSphere();
-      measGroup.add(line);
-      const marker = createMarker(worldCoords);
-      marker.name = MEAS_ORIGIN_MARKER_NAME;
+      // Place marker in scene
+      const direction = new THREE.Vector3();
+      const markerCoord = new THREE.Vector3();
+      direction.subVectors(endPoint, startPoint);
+      direction.normalize();
+      direction.multiplyScalar(1.5);
+      markerCoord.addVectors(startPoint, direction);
+      const marker = createMarker(markerCoord);
       measGroup.add(marker);
 
+      // Create line that corresponds to vector raycast
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+      const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
+      measGroup.add(lineMesh);
 
-      /*
-      const cameraPosition = new THREE.Vector3();
-      const targetPos = geometry.boundingSphere.center;
-      const perpVec = getPerpendicularVector(directions);
+      // Turn the camera 90 degrees to select depth
+      const perpVec = getPerpendicularVector(direction);
       perpVec.normalize();
-      cameraPosition.subVectors(targetPos, perpVec);
-      */
+      const cameraPosition = marker.position.clone().addScaledVector(perpVec, 0.75);
+      console.log(cameraPosition);
 
       // camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-      // sceneTree.metadata.camera.lookAt(targetPos);
-      //
+      // sceneTree.metadata.camera.lookAt(marker.position);
+
       if (isMeasuring) {
 	setMeasuring(false);
       } else {
 	setMeasuring(true);
       }
 
-      /*
-      const rgbColor = new THREE.Color(color);
-      const matLine = new LineMaterial({
-	color,
-	linewidth: lineWidth,
-	dashed: true,
-	gapSize: 2,
-	dashSize: 1,
-	dashScale: 50,
-	alphaToCoverage: true,
-      });
-      setReferencePoint(marker.position);
-
-      const geomLine = new LineGeometry();
-      geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
-
-      const dashed_line = new Line2(geomLine,matLine);
-      dashed_line.name = MEAS_LINE_NAME;
-      dashed_line.scale.set(1,1,1);
-      measGroup.add(dashed_line);
-
-      const measLabelDiv = document.createElement('div');
-      measLabelDiv.innerText = '0.0m';
-      measLabelDiv.className = 'MeasurementLabel';
-      measLabelDiv.style.fontSize = fontSize;
-      measLabelDiv.style.fontFamily = 'monospace';
-      measLabelDiv.style.fontWeight = 'bold';
-      measLabelDiv.style.color = color;
-
-      const measLabel = new CSS2DObject(measLabelDiv);
-      measLabel.position.copy(marker.position);
-      measLabel.name = 'Measurement-Label';
-      measGroup.add(measLabel);
-      */
     },
     [sceneTree, color, fontSize, isMeasuring, pickableObjects],
   );
@@ -329,6 +235,16 @@ export default function MeasureTool(props) {
 
   React.useEffect(() => {
     if (measEnabled) {
+
+      // Create crosshair
+      const camera = sceneTree.metadata.camera;
+      const crosshairGeometry = new THREE.CircleGeometry(0.02, 32);
+      const crosshairMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const crosshairMesh = new THREE.Mesh(crosshairGeometry, crosshairMaterial);
+      crosshairMesh.position.set(0, 0, -10);
+      crosshairMesh.renderOrder = 1;
+      camera.add(crosshairMesh);
+
       camera_controls.enabled = false;
 
       /*
