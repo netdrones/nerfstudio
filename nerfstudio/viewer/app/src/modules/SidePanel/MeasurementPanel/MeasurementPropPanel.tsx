@@ -13,6 +13,7 @@ export default function MeasurementPropPanel(props) {
     (state: any) => state.measState.markerRadius,
   );
   const lineWidthValue = useSelector((state: any) => state.measState.lineWidth);
+  const measScaleValue = useSelector((state: any) => state.measState.scale);
   const unitValue = useSelector((state: any) => state.measState.unit);
 
   const setType = (value) => {
@@ -50,6 +51,14 @@ export default function MeasurementPropPanel(props) {
     dispatch({
       type: 'write',
       path: 'measState/lineWidth',
+      data: value,
+    });
+  };
+
+ const setMeasScale = (value) => {
+    dispatch({
+      type: 'write',
+      path: 'measState/scale',
       data: value,
     });
   };
@@ -110,6 +119,13 @@ export default function MeasurementPropPanel(props) {
         onChange: (v) => {
           setLineWidth(v);
         },
+      },
+      scale: {
+	label: 'Scale',
+	value: measScaleValue,
+	onChange: (v) => {
+	  setMeasScale(v);
+	},
       },
       unit: {
         label: 'Unit',

@@ -77,13 +77,8 @@ const initialState = {
     markerRadius: 0.003,
     lineWidth: 0.005,
     unit: 'metric',
+    scale: 1.0,
     clear: false,
-    o_x: 0.0,
-    o_y: 0.0,
-    o_z: 0.0,
-    d_x: 0.0,
-    d_y: 0.0,
-    d_z: 0.0,
   },
 
   // Inspector

@@ -52,6 +52,7 @@ export default function MeasureTool(props) {
   const markerRadius = useSelector((state) => state.measState.markerRadius);
   const lineWidth = useSelector((state) => state.measState.lineWidth);
   const measUnit = useSelector((state) => state.measState.unit);
+  const measScale = useSelector((state) => state.measState.scale);
 
   function createMarker(point) {
       const geom = new THREE.SphereGeometry(markerRadius);
@@ -133,6 +134,7 @@ export default function MeasureTool(props) {
 
 	// We're about to start a new measurement pair, so clear everything out
 	if (pointCount === 2) {
+	  console.log(pointCount);
 	  const markerOrigin = measGroup.getObjectByName(MEAS_ORIGIN_NAME);
 	  const markerEnd = measGroup.getObjectByName(MEAS_END_NAME);
 	  const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
@@ -141,7 +143,6 @@ export default function MeasureTool(props) {
 	  if (markerOrigin) { measGroup.remove(markerOrigin); }
 	  if (markerEnd) { measGroup.remove(markerEnd); }
 	  if (measLine) { measGroup.remove(measLine); }
-	  if (prevLab) { measGroup.remove(prevLab); }
 
 	  zeroPoints();
 	}
@@ -159,15 +160,6 @@ export default function MeasureTool(props) {
 
 	  marker.name = MEAS_ORIGIN_NAME;
 	  measGroup.add(marker);
-
-	  // Initialize measurement label
-          const measLabelDiv = document.createElement('div');
-          measLabelDiv.innerText = '0.0m';
-          measLabelDiv.className = 'MeasurementLabel';
-          measLabelDiv.style.fontSize = fontSize;
-          measLabelDiv.style.fontFamily = 'monospace';
-          measLabelDiv.style.fontWeight = 'bold';
-          measLabelDiv.style.color = color;
 
           // Initialize measurement line
           const rgbColor = new THREE.Color(color);
@@ -190,35 +182,34 @@ export default function MeasureTool(props) {
           measureLine.scale.set(1, 1, 1);
           measGroup.add(measureLine);
 
-          const measLabel = new CSS2DObject(measLabelDiv);
-          measLabel.position.copy(marker.position);
-          measLabel.name = MEAS_LABEL_NAME;
-          measGroup.add(measLabel);
+	  // Initialize label
+	  const labelCanvas = document.createElement('canvas');
+	  const context = labelCanvas.getContext('2d');
+	  context.font = 'Bold 20px Arial';
+	  context.fillStyle = 'rgba(255, 255, 255, 0.8)';
+	  context.textAlign = 'center';
+	  context.textBaseline = 'middle';
+	  context.fillText('', labelCanvas.width / 2, labelCanvas.height / 2);
 
-	  const testLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
-	  console.log(measLabel, testLabel);
-
-	  incrementPoints();
+	  const labelTex = new THREE.Texture(labelCanvas);
+	  labelTex.needsUpdate = true;
+	  const labelMaterial = new THREE.SpriteMaterial({ map: labelTex });
+	  const labelSprite = new THREE.Sprite(labelMaterial);
+	  labelSprite.scale.set(100, 50, 1);
+	  labelSprite.name = MEAS_LABEL_NAME;
+	  measGroup.add(labelSprite);
 
 	// Second point in measurement pair
 	} else if (pointCount === 1) {
           marker.name = MEAS_END_NAME;
 	  measGroup.add(marker);
-
-	  const testLabel1 = measGroup.getObjectByName(MEAS_LABEL_NAME);
-	  console.log(testLabel1);
-
-	  incrementPoints();
-	}
-
-	else {
-	  console.log('ERROR');
 	}
 
 	// Remove the guide-line and selector
 	measGroup.remove(line);
 	measGroup.remove(selector);
 
+	incrementPoints();
 	setAiming(true);
       }
     },
@@ -273,15 +264,12 @@ export default function MeasureTool(props) {
 	const v1 = new THREE.Vector3(marker.position.x, marker.position.y, marker.position.z);
 	let d;
 	if (measUnit === 'metric') {
-	    d = `${v0.distanceTo(v1).toFixed(3)}m`;
+	    d = `${v0.distanceTo(v1).toFixed(3) * measScale}m`;
 	  } else {
 	    d = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
 	  }
 
-	const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
-	console.log(measLabel);
-	// measLabel.element.innerText = d;
-	// measLabel.position.lerpVectors(v0, v1, 0.5);
+	console.log(d);
       }
     },
     [
@@ -290,6 +278,7 @@ export default function MeasureTool(props) {
       pickableObjects,
       referencePoint,
       measUnit,
+      measScale,
     ],
   );
 
