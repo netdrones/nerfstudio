@@ -39,6 +39,7 @@ export default function MeasureTool(props) {
   );
   const render_aspect = render_width / render_height;
 
+  let measLabel = null;
   const [isAiming, setAiming] = React.useState(true);
   const [referencePoint, setReferencePoint] = React.useState(null);
   const [pickableObjects, setPickableObjects] = React.useState([]);
@@ -134,15 +135,16 @@ export default function MeasureTool(props) {
 
 	// We're about to start a new measurement pair, so clear everything out
 	if (pointCount === 2) {
-	  console.log(pointCount);
 	  const markerOrigin = measGroup.getObjectByName(MEAS_ORIGIN_NAME);
 	  const markerEnd = measGroup.getObjectByName(MEAS_END_NAME);
 	  const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
-	  const prevLab = measGroup.getObjectByName(MEAS_LABEL_NAME);
 
 	  if (markerOrigin) { measGroup.remove(markerOrigin); }
 	  if (markerEnd) { measGroup.remove(markerEnd); }
-	  if (measLine) { measGroup.remove(measLine); }
+	  if (measLine) {
+	    const labelId = new Date().getTime().toString();
+	    measLine.name = `${MEAS_ORIGIN_NAME}-${labelId}`;
+	    }
 
 	  zeroPoints();
 	}
@@ -181,23 +183,6 @@ export default function MeasureTool(props) {
           measureLine.name = MEAS_LINE_NAME;
           measureLine.scale.set(1, 1, 1);
           measGroup.add(measureLine);
-
-	  // Initialize label
-	  const labelCanvas = document.createElement('canvas');
-	  const context = labelCanvas.getContext('2d');
-	  context.font = 'Bold 20px Arial';
-	  context.fillStyle = 'rgba(255, 255, 255, 0.8)';
-	  context.textAlign = 'center';
-	  context.textBaseline = 'middle';
-	  context.fillText('', labelCanvas.width / 2, labelCanvas.height / 2);
-
-	  const labelTex = new THREE.Texture(labelCanvas);
-	  labelTex.needsUpdate = true;
-	  const labelMaterial = new THREE.SpriteMaterial({ map: labelTex });
-	  const labelSprite = new THREE.Sprite(labelMaterial);
-	  labelSprite.scale.set(100, 50, 1);
-	  labelSprite.name = MEAS_LABEL_NAME;
-	  measGroup.add(labelSprite);
 
 	// Second point in measurement pair
 	} else if (pointCount === 1) {
@@ -262,14 +247,61 @@ export default function MeasureTool(props) {
 	    referencePoint.z,
 	);
 	const v1 = new THREE.Vector3(marker.position.x, marker.position.y, marker.position.z);
-	let d;
-	if (measUnit === 'metric') {
-	    d = `${v0.distanceTo(v1).toFixed(3) * measScale}m`;
-	  } else {
-	    d = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
-	  }
 
-	console.log(d);
+	const offset = 1;
+	const midpoint = new THREE.Vector3();
+	midpoint.addVectors(v0, v1).multiplyScalar(0.5);
+
+
+	let distance;
+	if (measUnit === 'metric') {
+	    distance = `${(v0.distanceTo(v1) * measScale).toFixed(2)}m`;
+	} else {
+	    distance = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
+	}
+
+	// Create a new canvas
+	if (!measLabel) {
+	  let canvas = document.createElement('canvas');
+	  canvas.width = 1024;
+	  canvas.height = 512;
+	  let context = canvas.getContext('2d');
+	  let text = distance;
+	  context.font = '18px Arial';
+	  let textMetrics = context.measureText(text);
+
+	  let x = (canvas.width - textMetrics.width) / 2;
+	  let y = (canvas.height + parseInt(context.font)) / 2;
+
+	  context.fillText(text, x, y);
+
+	  const tex = new THREE.Texture(canvas);
+	  tex.needsUpdate = true;
+
+	  const spriteMat = new THREE.SpriteMaterial({ map: tex });
+	  measLabel = new THREE.Sprite(spriteMat);
+	  sceneTree.object.add(measLabel);
+	  measGroup.add(measLabel);
+
+	} else {
+	  let canvas = measLabel.material.map.image;
+	  let context = canvas.getContext('2d');
+	  let text = distance;
+
+	  context.font = '18px Arial';
+	  context.clearRect(0, 0, canvas.width, canvas.height);
+
+	  let textMetrics = context.measureText(text);
+	  let x = (canvas.width - textMetrics.width) / 2;
+	  let y = (canvas.height + parseInt(context.font)) / 2;
+
+	  context.fillText(text, x, y);
+	  measLabel.material.map.needsUpdate = true;
+
+	}
+
+	measLabel.position.copy(midpoint);
+
       }
     },
     [
