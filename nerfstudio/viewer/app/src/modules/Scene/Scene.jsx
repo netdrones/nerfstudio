@@ -231,7 +231,8 @@ export function get_scene_tree() {
     main_camera,
     renderer.domElement,
   );
-  sceneTree.set_object_from_path(['Transform Controls'], transform_controls);
+  // sceneTree.set_object_from_path(['Transform Controls'], transform_controls);
+  // sceneTree.metadata.transform_controls = transform_controls;
   transform_controls.addEventListener('dragging-changed', (event) => {
     // turn off the camera controls while transforming an object
     camera_controls.enabled = !event.value;

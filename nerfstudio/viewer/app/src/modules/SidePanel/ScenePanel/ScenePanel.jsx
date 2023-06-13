@@ -16,13 +16,16 @@ import {
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material/';
-import SceneNode from '../../../SceneNode';
-import LevaTheme from '../../../themes/leva_theme.json';
+
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+
+import SceneNode from '../../../SceneNode';
+import LevaTheme from '../../../themes/leva_theme.json';
+
 
 export const snap_to_camera = (sceneTree, camera, matrix) => {
   const mat = new THREE.Matrix4();

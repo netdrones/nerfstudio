@@ -10,6 +10,7 @@ import {
     ViserWebSocketContext,
     sendWebsocketMessage,
 } from '../WebSocket/ViserWebSocket';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 const MEASUREMENT_NAME = 'Measurement';
 const MEAS_ORIGIN_NAME = 'Measurement-Origin';
@@ -21,6 +22,7 @@ const USER_SCENE_NAME = 'User Scene';
 const CROSSHAIR_NAME = 'Crosshair';
 const GUIDE_LINE_NAME = 'Guide-Line';
 const MEAS_SELECTOR_NAME = 'Selector';
+const MEAS_PLANE_NAME = 'Plane';
 
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
@@ -64,6 +66,22 @@ export default function MeasureTool(props) {
       return marker;
    }
 
+  function createPlane(point, width, height) {
+    const planeGeometry = new THREE.PlaneGeometry(width, height);
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff, // white
+      side: THREE.DoubleSide
+    });
+
+    const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+    planeMesh.name = MEAS_PLANE_NAME;
+
+    planeMesh.position.set(point.x, point.y, point.z);
+    planeMesh.lookAt(sceneTree.metadata.camera.position);
+
+    return planeMesh;
+  }
+
   const sendNerfQuery = React.useCallback(
     (pointer) => {
       sendWebsocketMessage(viser_websocket, {
@@ -77,7 +95,7 @@ export default function MeasureTool(props) {
 	camera_type,
       });
     },
-    [sceneTree, render_aspect],
+    [sceneTree, render_aspect, camera_type, viser_websocket],
   );
 
   function getCameraRay(camera) {
@@ -160,8 +178,17 @@ export default function MeasureTool(props) {
 	// First point in the measurement pair
 	if (pointCount === 0) {
 
+	  // Place the point
 	  marker.name = MEAS_ORIGIN_NAME;
 	  measGroup.add(marker);
+
+	  // Place the plane
+	  const plane = createPlane(selector.position, 0.5, 0.5);
+	  plane.name = MEAS_PLANE_NAME;
+	  const transformControls = new TransformControls(sceneTree.metadata.camera, sceneTree.metadata.renderer.domElement);
+	  // transformControls.attach(plane);
+	  // sceneTree.object.add(transformControls);
+	  // measGroup.add(plane);
 
           // Initialize measurement line
           const rgbColor = new THREE.Color(color);
@@ -209,18 +236,19 @@ export default function MeasureTool(props) {
 
       // Get mouse coordinates
       const pointer = new THREE.Vector2();
+      const raycaster = new THREE.Raycaster();
       const canvas = sceneTree.metadata.renderer.domElement;
       const canvasPos = canvas.getBoundingClientRect();
       pointer.x = ((evt.clientX - canvasPos.left) / canvas.offsetWidth) * 2 - 1;
       pointer.y =
         -((evt.clientY - canvasPos.top) / canvas.offsetHeight) * 2 + 1;
 
+      // Point sliding mode
       if (!isAiming) {
 
 	// Project marker onto guide-line
 	const line = measGroup.getObjectByName(GUIDE_LINE_NAME);
 	const marker = measGroup.getObjectByName(MEAS_SELECTOR_NAME);
-	const raycaster = new THREE.Raycaster();
 	raycaster.setFromCamera(pointer, camera);
 	const intersects = raycaster.intersectObject(line);
 	if (intersects.length > 0) {
@@ -255,7 +283,7 @@ export default function MeasureTool(props) {
 
 	let distance;
 	if (measUnit === 'metric') {
-	    distance = `${(v0.distanceTo(v1) * measScale).toFixed(2)}m`;
+	    distance = `${(v0.distanceTo(v1) * measScale).toFixed(3)}m`;
 	} else {
 	    distance = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
 	}
@@ -283,6 +311,7 @@ export default function MeasureTool(props) {
 	  sceneTree.object.add(measLabel);
 	  measGroup.add(measLabel);
 
+	// Update existing canvas
 	} else {
 	  let canvas = measLabel.material.map.image;
 	  let context = canvas.getContext('2d');

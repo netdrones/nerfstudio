@@ -301,6 +301,9 @@ class OutputOptionsMessage(NerfstudioMessage):
     """Output options message which are used in the export panel.
     TODO: remove when export panel is becomes python defined.
     """
+    options: Any
+    """ List of output option strings"""
+
 class ExportMeshMessage(NerfstudioMessage):
     """Export NeRF model as mesh message."""
 

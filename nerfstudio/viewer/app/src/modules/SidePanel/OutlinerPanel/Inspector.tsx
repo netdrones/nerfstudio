@@ -141,7 +141,7 @@ export default function Inspector(props: InspectorProps) {
       pointerVec.y = (-evt.clientY / canvas.offsetHeight) * 2 + 1;
 
       raycaster.setFromCamera(pointerVec, mainCamera);
-      const scene = sceneTree.find_no_create([USER_SCENE_NAME]).object;
+      const scene = sceneTree.object;
       const intersects = raycaster.intersectObjects(scene.children, true);
       if (intersects.length > 0) {
         const intersect = intersects[0];

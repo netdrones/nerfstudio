@@ -361,7 +361,7 @@ export default function ViewerWindow(props) {
   }, [size, sceneTree.metadata.camera, throttledClickSender]);
 
   // Measurement
-  const meas_enabled = useSelector((state) => state.measState.enabled);
+  const measEnabled = useSelector((state) => state.measState.enabled);
   const measType = useSelector((state) => state.measState.type);
 
   return (

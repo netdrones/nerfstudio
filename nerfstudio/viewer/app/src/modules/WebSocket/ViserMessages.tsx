@@ -174,6 +174,6 @@ export type Message =
   | UseTimeConditioningMessage
   | TimeConditionMessage
   | ClickMessage
-  | OutputOptionsMessage;
+  | OutputOptionsMessage
   | ExportMeshMessage
   | DownloadFileMessage;
