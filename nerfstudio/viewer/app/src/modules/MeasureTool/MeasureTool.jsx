@@ -23,6 +23,7 @@ const CROSSHAIR_NAME = 'Crosshair';
 const GUIDE_LINE_NAME = 'Guide-Line';
 const MEAS_SELECTOR_NAME = 'Selector';
 const MEAS_PLANE_NAME = 'Plane';
+const MEAS_TRANSFORM_NAME = 'Transform';
 
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
@@ -185,10 +186,13 @@ export default function MeasureTool(props) {
 	  // Place the plane
 	  const plane = createPlane(selector.position, 0.5, 0.5);
 	  plane.name = MEAS_PLANE_NAME;
-	  const transformControls = new TransformControls(sceneTree.metadata.camera, sceneTree.metadata.renderer.domElement);
-	  // transformControls.attach(plane);
-	  // sceneTree.object.add(transformControls);
-	  // measGroup.add(plane);
+
+	  // Transform controls
+	  const transform_controls = sceneTree.metadata.transform_controls;
+	  transform_controls.attach(plane);
+	  transform_controls.setMode('rotate');
+	  sceneTree.object.add(transform_controls);
+	  measGroup.add(plane);
 
           // Initialize measurement line
           const rgbColor = new THREE.Color(color);

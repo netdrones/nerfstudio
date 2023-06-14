@@ -2,9 +2,9 @@
 import * as THREE from 'three';
 
 import CameraControls from 'camera-controls';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer';
 
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
 import { useDispatch } from 'react-redux';
 import { drawCamera, drawSceneBox} from './drawing';
 
@@ -82,6 +82,13 @@ export function get_scene_tree() {
   document.body.appendChild(labelRenderer.domElement);
   sceneTree.metadata.labelRenderer = labelRenderer;
 
+  // Transform Controls
+  const transform_controls = new TransformControls(main_camera, renderer.domElement);
+  transform_controls.addEventListener('dragging-changed', function (event) {
+    camera_controls.enabled != event.value;
+  });
+  sceneTree.metadata.transform_controls = transform_controls;
+
   // Camera Controls
   CameraControls.install({ THREE });
 
@@ -95,20 +102,11 @@ export function get_scene_tree() {
   camera_controls.restThreshold = .0025;
   camera_controls.saveState();
 
-  // Orbit Control Gizmo
-  // const orbitControls = new OrbitControls(main_camera, renderer.domElement);
-  // const orbitControlsGizmo = new OrbitControlsGizmo(orbitControls, {
-  //   size: 100,
-  //   padding: 8,
-  // });
-  // document.body.appendChild(orbitControlsGizmo.domElement);
-
   const keyMap = [];
-  const moveSpeed = 0.005;
+  const moveSpeed = 0.004;
   const upRotSpeed = 0.04;
   const sideRotSpeed = .01;
   const EPS = 0.005;
-
 
   function rotate() {
     if (
@@ -209,6 +207,8 @@ export function get_scene_tree() {
         data: true,
       });
     }
+    else if (event.key === 'r') {
+    }
   }
 
   function checkVisibility(camera) {
@@ -226,18 +226,6 @@ export function get_scene_tree() {
   sceneTree.metadata.camera_controls = camera_controls;
   sceneTree.metadata.moveCamera = moveCamera;
 
-  // Transform Controls
-  const transform_controls = new TransformControls(
-    main_camera,
-    renderer.domElement,
-  );
-  // sceneTree.set_object_from_path(['Transform Controls'], transform_controls);
-  // sceneTree.metadata.transform_controls = transform_controls;
-  transform_controls.addEventListener('dragging-changed', (event) => {
-    // turn off the camera controls while transforming an object
-    camera_controls.enabled = !event.value;
-  });
-
   // if you drag the screen when the render camera is shown,
   // then snap back to the main camera
   // eslint-disable-next-line no-unused-vars
@@ -249,7 +237,6 @@ export function get_scene_tree() {
         data: 'Main Camera',
       });
     }
-    // transform_controls.detach();
   });
 
   // Axes
