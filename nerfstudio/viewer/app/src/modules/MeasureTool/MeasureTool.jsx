@@ -56,7 +56,7 @@ export default function MeasureTool(props) {
   const markerRadius = useSelector((state) => state.measState.markerRadius);
   const lineWidth = useSelector((state) => state.measState.lineWidth);
   const measUnit = useSelector((state) => state.measState.unit);
-  const measScale = useSelector((state) => state.measState.scale);
+  const scaleFactor = useSelector((state) => state.measState.scaleFactor);
 
   function createMarker(point) {
       const geom = new THREE.SphereGeometry(markerRadius);
@@ -118,7 +118,7 @@ export default function MeasureTool(props) {
     return [startPoint, endPoint, direction, markerCoord]
   }
 
-  // Button click
+  // Handle mouse clicks
   const handleMeasStart = React.useCallback(
     (evt) => {
       evt.preventDefault();
@@ -126,11 +126,11 @@ export default function MeasureTool(props) {
       const camera = sceneTree.metadata.camera;
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
-      // We're currently aiming using the crosshair
+      // We're currently either aiming using the crosshair or selecting an object to manipulate
       if (isAiming) {
 	const [startPoint, endPoint, direction, markerCoord] = getCameraRay(camera);
 
-	// Create line that corresponds to vector raycast
+	// Create guide-line that corresponds to vector raycast
 	const lineGeometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
 	const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
 	const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
@@ -150,7 +150,7 @@ export default function MeasureTool(props) {
 	cameraPosition.z += 0.2;
 	camera_controls.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
 	sceneTree.metadata.camera.lookAt(selector.position);
-	camera.updateMatrixWorld(true);
+	sceneTree.metadata.camera.updateMatrixWorld(true);
 
 	// We're about to start a new measurement pair, so clear everything out
 	if (pointCount === 2) {
@@ -184,15 +184,21 @@ export default function MeasureTool(props) {
 	  measGroup.add(marker);
 
 	  // Place the plane
-	  const plane = createPlane(selector.position, 0.5, 0.5);
-	  plane.name = MEAS_PLANE_NAME;
+	  // const plane = createPlane(selector.position, 0.5, 0.5);
+	  // plane.name = MEAS_PLANE_NAME;
 
 	  // Transform controls
 	  const transform_controls = sceneTree.metadata.transform_controls;
-	  transform_controls.attach(plane);
-	  transform_controls.setMode('rotate');
-	  sceneTree.object.add(transform_controls);
-	  measGroup.add(plane);
+          sceneTree.object.add(transform_controls);
+	  transform_controls.addEventListener('dragging-changed', function (event) {
+	    camera_controls.enabled != event.value;
+	  });
+
+	  // transform_controls.attach(plane);
+	  // transform_controls.setMode('rotate');
+
+	  // sceneTree.object.add(transform_controls);
+          // measGroup.add(plane);
 
           // Initialize measurement line
           const rgbColor = new THREE.Color(color);
@@ -254,87 +260,89 @@ export default function MeasureTool(props) {
 	const line = measGroup.getObjectByName(GUIDE_LINE_NAME);
 	const marker = measGroup.getObjectByName(MEAS_SELECTOR_NAME);
 	raycaster.setFromCamera(pointer, camera);
-	const intersects = raycaster.intersectObject(line);
-	if (intersects.length > 0) {
-	  const intersectionPoint = intersects[0].point;
-	  marker.position.copy(intersectionPoint);
+	if (line) {
+	  const intersects = raycaster.intersectObject(line);
+	  if (intersects.length > 0) {
+	    const intersectionPoint = intersects[0].point;
+	    marker.position.copy(intersectionPoint);
+	  }
 	}
 
 	// Move indicator line to marker
 	const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
-	measLine.geometry.setPositions([
-            referencePoint.x,
-            referencePoint.y,
-            referencePoint.z,
-            marker.position.x,
-            marker.position.y,
-            marker.position.z,
-          ]);
-	measLine.geometry.attributes.position.needsUpdate = true;
-	measLine.computeLineDistances();
+	if (measLine) {
+	  measLine.geometry.setPositions([
+	      referencePoint.x,
+	      referencePoint.y,
+	      referencePoint.z,
+	      marker.position.x,
+	      marker.position.y,
+	      marker.position.z,
+	  ]);
+	  measLine.geometry.attributes.position.needsUpdate = true;
+	  measLine.computeLineDistances();
 
-        const v0 = new THREE.Vector3(
-	    referencePoint.x,
-	    referencePoint.y,
-	    referencePoint.z,
-	);
-	const v1 = new THREE.Vector3(marker.position.x, marker.position.y, marker.position.z);
+	  const v0 = new THREE.Vector3(
+	      referencePoint.x,
+	      referencePoint.y,
+	      referencePoint.z,
+	  );
+	  const v1 = new THREE.Vector3(marker.position.x, marker.position.y, marker.position.z);
 
-	const offset = 1;
-	const midpoint = new THREE.Vector3();
-	midpoint.addVectors(v0, v1).multiplyScalar(0.5);
+	  const offset = 1;
+	  const midpoint = new THREE.Vector3();
+	  midpoint.addVectors(v0, v1).multiplyScalar(0.5);
 
 
-	let distance;
-	if (measUnit === 'metric') {
-	    distance = `${(v0.distanceTo(v1) * measScale).toFixed(3)}m`;
-	} else {
-	    distance = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
-	}
+	  let distance;
+	  if (measUnit === 'metric') {
+	      distance = `${(v0.distanceTo(v1) * scaleFactor).toFixed(3)}m`;
+	  } else {
+	      distance = `${(v0.distanceTo(v1) * 3.28084).toFixed(3)}ft`;
+	  }
 
-	// Create a new canvas
-	if (!measLabel) {
-	  let canvas = document.createElement('canvas');
-	  canvas.width = 1024;
-	  canvas.height = 512;
-	  let context = canvas.getContext('2d');
-	  let text = distance;
-	  context.font = '18px Arial';
-	  let textMetrics = context.measureText(text);
+	  // Create a new canvas
+	  if (!measLabel) {
+	    let canvas = document.createElement('canvas');
+	    canvas.width = 1024;
+	    canvas.height = 512;
+	    let context = canvas.getContext('2d');
+	    let text = distance;
+	    context.font = '18px Arial';
+	    let textMetrics = context.measureText(text);
 
-	  let x = (canvas.width - textMetrics.width) / 2;
-	  let y = (canvas.height + parseInt(context.font)) / 2;
+	    let x = (canvas.width - textMetrics.width) / 2;
+	    let y = (canvas.height + parseInt(context.font)) / 2;
 
-	  context.fillText(text, x, y);
+	    context.fillText(text, x, y);
 
-	  const tex = new THREE.Texture(canvas);
-	  tex.needsUpdate = true;
+	    const tex = new THREE.Texture(canvas);
+	    tex.needsUpdate = true;
 
-	  const spriteMat = new THREE.SpriteMaterial({ map: tex });
-	  measLabel = new THREE.Sprite(spriteMat);
-	  sceneTree.object.add(measLabel);
-	  measGroup.add(measLabel);
+	    const spriteMat = new THREE.SpriteMaterial({ map: tex });
+	    measLabel = new THREE.Sprite(spriteMat);
+	    sceneTree.object.add(measLabel);
+	    measGroup.add(measLabel);
 
-	// Update existing canvas
-	} else {
-	  let canvas = measLabel.material.map.image;
-	  let context = canvas.getContext('2d');
-	  let text = distance;
+	  // Update existing canvas
+	  } else {
+	    let canvas = measLabel.material.map.image;
+	    let context = canvas.getContext('2d');
+	    let text = distance;
 
-	  context.font = '18px Arial';
-	  context.clearRect(0, 0, canvas.width, canvas.height);
+	    context.font = '18px Arial';
+	    context.clearRect(0, 0, canvas.width, canvas.height);
 
-	  let textMetrics = context.measureText(text);
-	  let x = (canvas.width - textMetrics.width) / 2;
-	  let y = (canvas.height + parseInt(context.font)) / 2;
+	    let textMetrics = context.measureText(text);
+	    let x = (canvas.width - textMetrics.width) / 2;
+	    let y = (canvas.height + parseInt(context.font)) / 2;
 
-	  context.fillText(text, x, y);
-	  measLabel.material.map.needsUpdate = true;
+	    context.fillText(text, x, y);
+	    measLabel.material.map.needsUpdate = true;
 
-	}
-
+	  }
 	measLabel.position.copy(midpoint);
-
+	}
       }
     },
     [
@@ -343,7 +351,7 @@ export default function MeasureTool(props) {
       pickableObjects,
       referencePoint,
       measUnit,
-      measScale,
+      scaleFactor,
     ],
   );
 
@@ -359,16 +367,40 @@ export default function MeasureTool(props) {
     if (measEnabled) {
       camera_controls.enabled = false;
 
-      // Create crosshair
       if (isAiming) {
-	const camera = sceneTree.metadata.camera;
-	const crosshairGeometry = new THREE.CircleGeometry(0.02, 32);
-	const crosshairMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-	const crosshairMesh = new THREE.Mesh(crosshairGeometry, crosshairMaterial);
+
+	// Create crosshair
+	const crosshairSize = 0.15; // Size of the crosshair lines
+	const crosshairThickness = 0.01; // Thickness of the crosshair lines
+	const crosshairColor = 0xffffff; // Color of the crosshair
+	const crosshairGeometry = new THREE.BufferGeometry();
+
+	const vertices = new Float32Array([
+	  -crosshairSize, crosshairThickness / 2, 0,
+	  crosshairSize, crosshairThickness / 2, 0,
+	  -crosshairSize, -crosshairThickness / 2, 0,
+	  crosshairSize, -crosshairThickness / 2, 0,
+	  -crosshairThickness / 2, crosshairSize, 0,
+	  -crosshairThickness / 2, -crosshairSize, 0,
+	  crosshairThickness / 2, crosshairSize, 0,
+	  crosshairThickness / 2, -crosshairSize, 0
+	]);
+
+	crosshairGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+	const crosshairMaterial = new THREE.LineBasicMaterial({ color: crosshairColor });
+	const crosshairMesh = new THREE.LineSegments(crosshairGeometry, crosshairMaterial);
+
+	const dotGeometry = new THREE.CircleGeometry(0.06, 32);
+	const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+	const dotMesh = new THREE.Mesh(dotGeometry, dotMaterial);
+	dotMesh.position.set(0, 0, -10);
 	crosshairMesh.position.set(0, 0, -10);
 	crosshairMesh.renderOrder = 1;
+	dotMesh.renderOrder = 1;
 	crosshairMesh.name = CROSSHAIR_NAME;
-	camera.add(crosshairMesh);
+	crosshairMesh.add(dotMesh);
+	sceneTree.metadata.camera.add(crosshairMesh);
       }
 
     } else {
@@ -388,21 +420,6 @@ export default function MeasureTool(props) {
       const end = measGroup.getObjectByName(MEAS_END_NAME);
       const line = measGroup.getObjectByName(MEAS_LINE_NAME);
       const label = measGroup.getObjectByName(MEAS_LABEL_NAME);
-      if (origin) {
-        // measGroup.remove(origin);
-      }
-      if (end) {
-        // measGroup.remove(end);
-      }
-      if (line) {
-        // measGroup.remove(line);
-      }
-      if (label) {
-        if (label.element && label.element.parentNode) {
-          label.element.parentNode.removeChild(label.element);
-        }
-        measGroup.remove(label);
-      }
     }
   }, [measEnabled, sceneTree]);
 

@@ -84,9 +84,6 @@ export function get_scene_tree() {
 
   // Transform Controls
   const transform_controls = new TransformControls(main_camera, renderer.domElement);
-  transform_controls.addEventListener('dragging-changed', function (event) {
-    camera_controls.enabled != event.value;
-  });
   sceneTree.metadata.transform_controls = transform_controls;
 
   // Camera Controls

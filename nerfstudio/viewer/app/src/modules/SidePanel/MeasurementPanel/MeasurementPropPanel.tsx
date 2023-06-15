@@ -5,7 +5,6 @@ export default function MeasurementPropPanel(props) {
   const store = useStoreContext();
   const dispatch = useDispatch();
 
-  // const scaleFactorValue = useSelector((state) => state.measState.scaleFactor);
   const measType = useSelector((state: any) => state.measState.type);
   const fontSizeValue = useSelector((state: any) => state.measState.fontSize);
   const colorValue = useSelector((state: any) => state.measState.color);
@@ -13,7 +12,7 @@ export default function MeasurementPropPanel(props) {
     (state: any) => state.measState.markerRadius,
   );
   const lineWidthValue = useSelector((state: any) => state.measState.lineWidth);
-  const measScaleValue = useSelector((state: any) => state.measState.scale);
+  const scaleFactorValue = useSelector((state: any) => state.measState.scaleFactor);
   const unitValue = useSelector((state: any) => state.measState.unit);
 
   const setType = (value) => {
@@ -55,10 +54,10 @@ export default function MeasurementPropPanel(props) {
     });
   };
 
- const setMeasScale = (value) => {
+ const setScaleFactor = (value) => {
     dispatch({
       type: 'write',
-      path: 'measState/scale',
+      path: 'measState/scaleFactor',
       data: value,
     });
   };
@@ -73,14 +72,6 @@ export default function MeasurementPropPanel(props) {
 
   const [, setControls] = useControls(
     () => ({
-      // scaleFactor: {
-      //   label: 'Scale',
-      //   value: scaleFactorValue,
-      //   onChange: (v) => {
-      //     setScaleFactor(v);
-      //   },
-      // },
-
       type: {
         label: 'Dimension',
         value: measType,
@@ -121,10 +112,10 @@ export default function MeasurementPropPanel(props) {
         },
       },
       scale: {
-	label: 'Scale',
-	value: measScaleValue,
+	label: 'Scale Factor',
+	value: scaleFactorValue,
 	onChange: (v) => {
-	  setMeasScale(v);
+	  setScaleFactor(v);
 	},
       },
       unit: {
@@ -142,7 +133,6 @@ export default function MeasurementPropPanel(props) {
     { store },
   );
 
-  // setControls({ scaleFactor: scaleFactorValue });
   setControls({ fontSize: fontSizeValue });
   setControls({ color: colorValue });
   setControls({ markerRadius: markerRadiusValue });

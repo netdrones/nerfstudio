@@ -77,7 +77,7 @@ const initialState = {
     markerRadius: 0.003,
     lineWidth: 0.005,
     unit: 'metric',
-    scale: 1.0,
+    scaleFactor: 1.0,
     clear: false,
   },
 
