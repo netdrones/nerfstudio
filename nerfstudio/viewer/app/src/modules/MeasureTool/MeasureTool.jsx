@@ -70,7 +70,7 @@ export default function MeasureTool(props) {
       marker.position.copy(point);
 
       return marker;
-   }
+  }
 
   function createPlane(point, width, height) {
     const planeGeometry = new THREE.PlaneGeometry(width, height);
@@ -88,14 +88,38 @@ export default function MeasureTool(props) {
     return planeMesh;
   }
 
-  function createPlaneFromPoints(point1, point2, point3) {
-    const planeGeometry = new THREE.PlaneGeometry().setFromCoplanarPoints(pointA, pointB, pointC);
+  function createPlaneFromPoints(x1, x2, x3) {
+
+    const v1 = new THREE.Vector3(x1.position.x, x1.position.y, x1.position.z);
+    const v2 = new THREE.Vector3(x2.position.x, x2.position.y, x2.position.z);
+    const v3 = new THREE.Vector3(x3.position.x, x3.position.y, x3.position.z);
+
+    const edge1 = new THREE.Vector3();
+    const edge2 = new THREE.Vector3();
+
+    edge1.subVectors(v2, v1);
+    edge2.subVectors(v3, v1);
+
+    const normal = new THREE.Vector3();
+    normal.crossVectors(edge1, edge2).normalize();
+
+    const area = edge1.cross(edge2).length() / 2;
+    const planeSize = Math.sqrt(area);
+
+    const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+
+    const quaternion = new THREE.Quaternion();
+    quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+
     const planeMaterial = new THREE.MeshBasicMaterial({
       color: 0x00ff00, side: THREE.DoubleSide
     });
-    const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
 
-    return planeMesh;
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+    plane.position.copy(v1.add(v2).add(v3).divideScalar(3)); // Center the plane on the triangle
+    plane.quaternion.copy(quaternion);
+
+    return plane;
   }
 
   const sendNerfQuery = React.useCallback(
@@ -185,18 +209,38 @@ export default function MeasureTool(props) {
 	sceneTree.metadata.camera.lookAt(selector.position);
 	sceneTree.metadata.camera.updateMatrixWorld(true);
 
-	// We're about to start a new measurement pair, so clear everything out
+	// Start a new group in points mode
 	if (pointCount === 2 && measMode === 'points') {
+
+	  const labelId = new Date().getTime().toString();
 	  const markerOrigin = measGroup.getObjectByName(MEAS_ORIGIN_NAME);
 	  const markerEnd = measGroup.getObjectByName(MEAS_END_NAME);
 	  const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
 
-	  if (markerOrigin) { measGroup.remove(markerOrigin); }
-	  if (markerEnd) { measGroup.remove(markerEnd); }
+	  if (markerOrigin) { markerOrigin.name = `${MEAS_ORIGIN_NAME}-${labelId}`; }
+	  if (markerEnd) { markerEnd.name = `${MEAS_END_NAME}-${labelId}`; }
 	  if (measLine) {
 	    const labelId = new Date().getTime().toString();
-	    measLine.name = `${MEAS_ORIGIN_NAME}-${labelId}`;
-	    }
+	    measLine.name = `${MEAS_LINE_NAME}-${labelId}`;
+	  }
+
+	  zeroPoints();
+	}
+
+	// Start a new group in plane mode
+	else if (pointCount === 3 && measMode === 'plane') {
+	  const p1 = measGroup.getObjectByName(PLANE_1_NAME);
+	  const p2 = measGroup.getObjectByName(PLANE_2_NAME);
+	  const p3 = measGroup.getObjectByName(PLANE_3_NAME);
+	  const measPlane = measGroup.getObjectByName(MEAS_PLANE_NAME);
+
+	  if (p1) { measGroup.remove(p1); }
+	  if (p2) { measGroup.remove(p2); }
+	  if (p3) { measGroup.remove(p3); }
+	  if (measPlane) {
+	    const planeId = new Date().getTime().toString();
+	    measPlane.name = `${MEAS_PLANE_NAME}-${planeId}`;
+	  }
 
 	  zeroPoints();
 	}
@@ -211,67 +255,87 @@ export default function MeasureTool(props) {
 
 	if (pointCount === 0) {
 
-	  // Place the point
-	  if (measMode === 'points') {
-	    marker.name = MEAS_ORIGIN_NAME;
-	  } else {
-	    marker.name = PLANE_1_NAME;
-	  }
-
-	  measGroup.add(marker);
-	  console.log(marker.name);
-	  console.log(measMode);
-
-	  // Place the plane
-	  const plane = createPlane(selector.position, 0.5, 0.5);
-	  plane.name = MEAS_PLANE_NAME;
-
-	  // Transform controls
-	  const transform_controls = sceneTree.metadata.transform_controls;
-	  transform_controls.addEventListener('dragging-changed', function (event) {
-	    camera_controls.enabled != event.value;
-	  });
-
 	  if (measMode === 'plane') {
+	    marker.name = PLANE_1_NAME;
+	    measGroup.add(marker);
+
 	    const transform_controls = sceneTree.metadata.transform_controls;
 	    transform_controls.addEventListener('dragging-changed', function (event) {
 	      camera_controls.enabled != event.value;
 	    });
 
-	    const plane = createPlane(selector.position, 0.5, 0.5);
+	    // const plane = createPlane(selector.position, 0.5, 0.5);
+	    // plane.name = MEAS_PLANE_NAME;
+
+	    // transform_controls.attach(plane);
+	    // transform_controls.setMode('rotate');
+	    // sceneTree.object.add(transform_controls);
+	    // measGroup.add(plane);
+	  }
+
+	  else if (measMode === 'points') {
+	    marker.name = MEAS_ORIGIN_NAME;
+	    measGroup.add(marker);
+
+	    // Initialize measurement line
+	    const rgbColor = new THREE.Color(color);
+	    const matLine = new LineMaterial({
+	      color,
+	      linewidth: lineWidth,
+	      dashed: true,
+	      gapSize: 0.5,
+	      dashSize: 0.4,
+	      dashScale: 80,
+	      alphaToCoverage: true,
+	    });
+	    setReferencePoint(marker.position);
+
+	    const geomLine = new LineGeometry();
+	    geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
+
+	    const measureLine = new Line2(geomLine, matLine);
+	    measureLine.name = MEAS_LINE_NAME;
+	    measureLine.scale.set(1, 1, 1);
+	    measGroup.add(measureLine);
+	  }
+	}
+
+	else if (pointCount === 1) {
+
+	  if (measMode === 'plane') {
+	    marker.name = PLANE_2_NAME;
+	    measGroup.add(marker);
+	  }
+
+	  else if (measMode === 'points') {
+	    marker.name = MEAS_END_NAME;
+	    measGroup.add(marker);
+	  }
+	}
+
+	else if (pointCount === 2) {
+	  if (measMode === 'plane') {
+	    marker.name = PLANE_3_NAME;
+	    measGroup.add(marker);
+
+	    const p1 = measGroup.getObjectByName(PLANE_1_NAME);
+	    const p2 = measGroup.getObjectByName(PLANE_2_NAME);
+	    const p3 = measGroup.getObjectByName(PLANE_3_NAME);
+
+	    const plane = createPlaneFromPoints(p1, p2, p3);
 	    plane.name = MEAS_PLANE_NAME;
+	    measGroup.add(plane);
+	    console.log(plane);
+
+            const transform_controls = sceneTree.metadata.transform_controls;
+	    transform_controls.addEventListener('dragging-changed', function (event) {
+	      camera_controls.enabled != event.value;
+	    });
 
 	    transform_controls.attach(plane);
 	    transform_controls.setMode('rotate');
 	    sceneTree.object.add(transform_controls);
-	    measGroup.add(plane);
 	  }
-
-          // Initialize measurement line
-          const rgbColor = new THREE.Color(color);
-          const matLine = new LineMaterial({
-            color,
-            linewidth: lineWidth,
-            dashed: true,
-            gapSize: 0.5,
-            dashSize: 0.4,
-            dashScale: 80,
-            alphaToCoverage: true,
-          });
-          setReferencePoint(marker.position);
-
-          const geomLine = new LineGeometry();
-          geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
-
-          const measureLine = new Line2(geomLine, matLine);
-          measureLine.name = MEAS_LINE_NAME;
-          measureLine.scale.set(1, 1, 1);
-          measGroup.add(measureLine);
-
-	// Second point in measurement pair
-	} else if (pointCount === 1) {
-          marker.name = MEAS_END_NAME;
-	  measGroup.add(marker);
 	}
 
 	// Remove the guide-line and selector
