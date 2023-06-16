@@ -71,6 +71,7 @@ const initialState = {
   // Measurement
   measState: {
     type: '3d',
+    mode: 'points',
     enabled: false,
     fontSize: '24pt',
     color: '#00ff00',

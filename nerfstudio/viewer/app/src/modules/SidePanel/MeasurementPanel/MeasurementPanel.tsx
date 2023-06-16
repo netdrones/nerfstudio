@@ -7,11 +7,11 @@ import MeasurementPropPanel from './MeasurementPropPanel';
 import { Button } from '@mui/material';
 import { useDispatch } from 'react-redux';
 
-const MEASUREMENT_NAME = 'Measurement';
-
 interface MeasurementPanelProps {
   sceneTree: SceneNode;
 }
+
+const MEASUREMENT_NAME = 'Measurement';
 
 export default function MeasurementPanel(props: MeasurementPanelProps) {
   const sceneTree = props.sceneTree;
@@ -19,12 +19,6 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
   const dispatch = useDispatch();
 
   const handleClear = React.useCallback(() => {
-    // sceneTree.delete([MEASUREMENT_NAME]);
-
-    // // HACK: Make sure CSS2DObject to be removed from DOM tree
-    // for (let elm of document.querySelectorAll('.MeasurementLabel')) {
-    //   elm.parentNode.removeChild(elm);
-    // }
     dispatch({
       type: 'write',
       path: 'measState/clear',
@@ -35,7 +29,6 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
   return (
     <div className="MeasPanel">
       <div className="MeasPanel-label">
-        Press Shift key and click points to start measurement.
       </div>
       <LevaPanel
         store={measPropStore}

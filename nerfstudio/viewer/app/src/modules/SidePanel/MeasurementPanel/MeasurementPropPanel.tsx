@@ -6,6 +6,7 @@ export default function MeasurementPropPanel(props) {
   const dispatch = useDispatch();
 
   const measType = useSelector((state: any) => state.measState.type);
+  const measMode = useSelector((state: any) => state.measState.mode);
   const fontSizeValue = useSelector((state: any) => state.measState.fontSize);
   const colorValue = useSelector((state: any) => state.measState.color);
   const markerRadiusValue = useSelector(
@@ -22,6 +23,15 @@ export default function MeasurementPropPanel(props) {
       data: value,
     });
   };
+
+  const setMode = (value) => {
+    dispatch({
+      type: 'write',
+      path: 'measState/mode',
+      data: value,
+    });
+  };
+
   const setFontSize = (value) => {
     dispatch({
       type: 'write',
@@ -83,6 +93,17 @@ export default function MeasurementPropPanel(props) {
           setType(v);
         },
       },
+      mode: {
+	label: 'Mode',
+	value: measMode,
+	options: {
+	  'Points': 'points',
+	  'Plane': 'plane',
+	},
+	onChange: (v) => {
+	  setMode(v);
+	},
+      },
       fontSize: {
         label: 'Font Size',
         value: fontSizeValue,
@@ -123,7 +144,7 @@ export default function MeasurementPropPanel(props) {
         value: unitValue,
         options: {
           Metric: 'metric',
-          Imerial: 'imperial',
+          Imperial: 'imperial',
         },
         onChange: (v) => {
           setUnit(v);

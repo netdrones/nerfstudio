@@ -25,6 +25,10 @@ const MEAS_SELECTOR_NAME = 'Selector';
 const MEAS_PLANE_NAME = 'Plane';
 const MEAS_TRANSFORM_NAME = 'Transform';
 
+const PLANE_1_NAME = 'Plane1';
+const PLANE_2_NAME = 'Plane2';
+const PLANE_3_NAME= 'Plane3';
+
 // https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
@@ -57,6 +61,7 @@ export default function MeasureTool(props) {
   const lineWidth = useSelector((state) => state.measState.lineWidth);
   const measUnit = useSelector((state) => state.measState.unit);
   const scaleFactor = useSelector((state) => state.measState.scaleFactor);
+  const measMode = useSelector((state) => state.measState.mode);
 
   function createMarker(point) {
       const geom = new THREE.SphereGeometry(markerRadius);
@@ -79,6 +84,16 @@ export default function MeasureTool(props) {
 
     planeMesh.position.set(point.x, point.y, point.z);
     planeMesh.lookAt(sceneTree.metadata.camera.position);
+
+    return planeMesh;
+  }
+
+  function createPlaneFromPoints(point1, point2, point3) {
+    const planeGeometry = new THREE.PlaneGeometry().setFromCoplanarPoints(pointA, pointB, pointC);
+    const planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00, side: THREE.DoubleSide
+    });
+    const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
 
     return planeMesh;
   }
@@ -118,7 +133,25 @@ export default function MeasureTool(props) {
     return [startPoint, endPoint, direction, markerCoord]
   }
 
-  // Handle mouse clicks
+  /**
+   * Handles state logic when the mouse is pressed.
+   *
+   * There's two possible main states:
+   *     1. Aiming - we're using the crosshair to create a guide-line for placing the point
+   *     2. Positioning - we're positioning the point along the guide-ray
+   *
+   * When we're in the "Aiming" state, the application behavior is always the same.
+   *
+   * When we're in the "Positioning" state, we must keep track of a few things:
+   *     1. `measState/mode` {point, plane}
+   *         In "point" mode, we compute the min. Euclidean distance between point pairs.
+   *         In "plane" mode, we select three points in the scene to insert a plane.
+   *     2. Number of points
+   *         In "point" mode, if one point exists, then a line initializes between the first
+   *         and second points which displays the distance between them.
+   *         In "plane" mode, every third point placed into the scene triggers adds the plane.
+   *
+   */
   const handleMeasStart = React.useCallback(
     (evt) => {
       evt.preventDefault();
@@ -126,11 +159,11 @@ export default function MeasureTool(props) {
       const camera = sceneTree.metadata.camera;
       const measGroup = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
-      // We're currently either aiming using the crosshair or selecting an object to manipulate
+      // Aiming mode
       if (isAiming) {
 	const [startPoint, endPoint, direction, markerCoord] = getCameraRay(camera);
 
-	// Create guide-line that corresponds to vector raycast
+	// Create guide-ray that corresponds to vector raycast
 	const lineGeometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
 	const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
 	const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
@@ -153,7 +186,7 @@ export default function MeasureTool(props) {
 	sceneTree.metadata.camera.updateMatrixWorld(true);
 
 	// We're about to start a new measurement pair, so clear everything out
-	if (pointCount === 2) {
+	if (pointCount === 2 && measMode === 'points') {
 	  const markerOrigin = measGroup.getObjectByName(MEAS_ORIGIN_NAME);
 	  const markerEnd = measGroup.getObjectByName(MEAS_END_NAME);
 	  const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
@@ -170,35 +203,49 @@ export default function MeasureTool(props) {
 
 	setAiming(false);
 
-      // We're currently sliding our dot along the ray
+      // Positioning mode
       } else {
 	const line = measGroup.getObjectByName(GUIDE_LINE_NAME);
 	const selector = measGroup.getObjectByName(MEAS_SELECTOR_NAME);
 	const marker = createMarker(selector.position);
 
-	// First point in the measurement pair
 	if (pointCount === 0) {
 
 	  // Place the point
-	  marker.name = MEAS_ORIGIN_NAME;
+	  if (measMode === 'points') {
+	    marker.name = MEAS_ORIGIN_NAME;
+	  } else {
+	    marker.name = PLANE_1_NAME;
+	  }
+
 	  measGroup.add(marker);
+	  console.log(marker.name);
+	  console.log(measMode);
 
 	  // Place the plane
-	  // const plane = createPlane(selector.position, 0.5, 0.5);
-	  // plane.name = MEAS_PLANE_NAME;
+	  const plane = createPlane(selector.position, 0.5, 0.5);
+	  plane.name = MEAS_PLANE_NAME;
 
 	  // Transform controls
 	  const transform_controls = sceneTree.metadata.transform_controls;
-          sceneTree.object.add(transform_controls);
 	  transform_controls.addEventListener('dragging-changed', function (event) {
 	    camera_controls.enabled != event.value;
 	  });
 
-	  // transform_controls.attach(plane);
-	  // transform_controls.setMode('rotate');
+	  if (measMode === 'plane') {
+	    const transform_controls = sceneTree.metadata.transform_controls;
+	    transform_controls.addEventListener('dragging-changed', function (event) {
+	      camera_controls.enabled != event.value;
+	    });
 
-	  // sceneTree.object.add(transform_controls);
-          // measGroup.add(plane);
+	    const plane = createPlane(selector.position, 0.5, 0.5);
+	    plane.name = MEAS_PLANE_NAME;
+
+	    transform_controls.attach(plane);
+	    transform_controls.setMode('rotate');
+	    sceneTree.object.add(transform_controls);
+	    measGroup.add(plane);
+	  }
 
           // Initialize measurement line
           const rgbColor = new THREE.Color(color);
