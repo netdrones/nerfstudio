@@ -29,7 +29,6 @@ const PLANE_1_NAME = 'Plane1';
 const PLANE_2_NAME = 'Plane2';
 const PLANE_3_NAME= 'Plane3';
 
-// https://sbcode.net/threejs/measurements/
 export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
   const renderer = sceneTree.metadata.renderer;
@@ -122,22 +121,6 @@ export default function MeasureTool(props) {
     return plane;
   }
 
-  const sendNerfQuery = React.useCallback(
-    (pointer) => {
-      sendWebsocketMessage(viser_websocket, {
-	type: 'GetDepthMessage',
-	x_coord: pointer.x,
-	y_coord: pointer.y,
-	aspect: sceneTree.metadata.camera.aspect,
-	render_aspect,
-	fov: sceneTree.metadata.camera.fov,
-	matrix: sceneTree.metadata.camera.matrix.elements,
-	camera_type,
-      });
-    },
-    [sceneTree, render_aspect, camera_type, viser_websocket],
-  );
-
   function getCameraRay(camera) {
 
     const startPoint = new THREE.Vector3();
@@ -156,6 +139,38 @@ export default function MeasureTool(props) {
 
     return [startPoint, endPoint, direction, markerCoord]
   }
+
+  function saveGroup(group, filename) {
+    const json = group.toJSON();
+    const jsonString = JSON.stringify(json);
+
+    // Create a Blob from the JSON string
+    const blob = new Blob([jsonString], { type: 'application/json' });
+
+    // Create a temporary anchor element to trigger the download
+    const anchorElement = document.createElement('a');
+    anchorElement.href = URL.createObjectURL(blob);
+    anchorElement.download = filename;
+
+    // Trigger the download
+    anchorElement.click();
+  }
+
+  const sendNerfQuery = React.useCallback(
+    (pointer) => {
+      sendWebsocketMessage(viser_websocket, {
+	type: 'GetDepthMessage',
+	x_coord: pointer.x,
+	y_coord: pointer.y,
+	aspect: sceneTree.metadata.camera.aspect,
+	render_aspect,
+	fov: sceneTree.metadata.camera.fov,
+	matrix: sceneTree.metadata.camera.matrix.elements,
+	camera_type,
+      });
+    },
+    [sceneTree, render_aspect, camera_type, viser_websocket],
+  );
 
   /**
    * Handles state logic when the mouse is pressed.
@@ -210,6 +225,7 @@ export default function MeasureTool(props) {
 	sceneTree.metadata.camera.updateMatrixWorld(true);
 
 	// Start a new group in points mode
+	const labelId = new Date().getTime().toString();
 	if (pointCount === 2 && measMode === 'points') {
 
 	  const labelId = new Date().getTime().toString();
@@ -220,7 +236,6 @@ export default function MeasureTool(props) {
 	  if (markerOrigin) { markerOrigin.name = `${MEAS_ORIGIN_NAME}-${labelId}`; }
 	  if (markerEnd) { markerEnd.name = `${MEAS_END_NAME}-${labelId}`; }
 	  if (measLine) {
-	    const labelId = new Date().getTime().toString();
 	    measLine.name = `${MEAS_LINE_NAME}-${labelId}`;
 	  }
 
@@ -234,12 +249,11 @@ export default function MeasureTool(props) {
 	  const p3 = measGroup.getObjectByName(PLANE_3_NAME);
 	  const measPlane = measGroup.getObjectByName(MEAS_PLANE_NAME);
 
-	  if (p1) { measGroup.remove(p1); }
-	  if (p2) { measGroup.remove(p2); }
-	  if (p3) { measGroup.remove(p3); }
+	  if (p1) { p1.name = `${PLANE_1_NAME}-${labelId}`; }
+	  if (p2) { p2.name = `${PLANE_2_NAME}-${labelId}`; }
+	  if (p3) { p3.name = `${PLANE_3_NAME}-${labelId}`; }
 	  if (measPlane) {
-	    const planeId = new Date().getTime().toString();
-	    measPlane.name = `${MEAS_PLANE_NAME}-${planeId}`;
+	    measPlane.name = `${MEAS_PLANE_NAME}-${labelId}`;
 	  }
 
 	  zeroPoints();
@@ -325,7 +339,6 @@ export default function MeasureTool(props) {
 	    const plane = createPlaneFromPoints(p1, p2, p3);
 	    plane.name = MEAS_PLANE_NAME;
 	    measGroup.add(plane);
-	    console.log(plane);
 
             const transform_controls = sceneTree.metadata.transform_controls;
 	    transform_controls.addEventListener('dragging-changed', function (event) {
@@ -403,7 +416,6 @@ export default function MeasureTool(props) {
 	  const offset = 1;
 	  const midpoint = new THREE.Vector3();
 	  midpoint.addVectors(v0, v1).multiplyScalar(0.5);
-
 
 	  let distance;
 	  if (measUnit === 'metric') {
