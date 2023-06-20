@@ -25,9 +25,9 @@ const MEAS_SELECTOR_NAME = 'Selector';
 const MEAS_PLANE_NAME = 'Plane';
 const MEAS_TRANSFORM_NAME = 'Transform';
 
-const PLANE_1_NAME = 'Plane1';
-const PLANE_2_NAME = 'Plane2';
-const PLANE_3_NAME= 'Plane3';
+const PLANE_1_NAME = 'P1';
+const PLANE_2_NAME = 'P2';
+const PLANE_3_NAME= 'P3';
 
 export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
@@ -232,12 +232,12 @@ export default function MeasureTool(props) {
 	  const markerOrigin = measGroup.getObjectByName(MEAS_ORIGIN_NAME);
 	  const markerEnd = measGroup.getObjectByName(MEAS_END_NAME);
 	  const measLine = measGroup.getObjectByName(MEAS_LINE_NAME);
+	  const measLabel = measGroup.getObjectByName(MEAS_LABEL_NAME);
 
 	  if (markerOrigin) { markerOrigin.name = `${MEAS_ORIGIN_NAME}-${labelId}`; }
 	  if (markerEnd) { markerEnd.name = `${MEAS_END_NAME}-${labelId}`; }
-	  if (measLine) {
-	    measLine.name = `${MEAS_LINE_NAME}-${labelId}`;
-	  }
+	  if (measLine) { measLine.name = `${MEAS_LINE_NAME}-${labelId}`; }
+	  if (measLabel) { measLabel.name = `${MEAS_LABEL_NAME}-${labelId}`; }
 
 	  zeroPoints();
 	}
@@ -310,6 +310,14 @@ export default function MeasureTool(props) {
 	    const measureLine = new Line2(geomLine, matLine);
 	    measureLine.name = MEAS_LINE_NAME;
 	    measureLine.scale.set(1, 1, 1);
+	    measureLine.userData = {
+	      originX: marker.position.x,
+	      originY: marker.position.y,
+	      originZ: marker.position.z,
+	      endX: null,
+	      endY: null,
+	      endZ: null
+	    };
 	    measGroup.add(measureLine);
 	  }
 	}
@@ -405,6 +413,9 @@ export default function MeasureTool(props) {
 	  ]);
 	  measLine.geometry.attributes.position.needsUpdate = true;
 	  measLine.computeLineDistances();
+	  measLine.userData.endX = marker.position.x;
+	  measLine.userData.endY = marker.position.y;
+	  measLine.userData.endZ = marker.position.z;
 
 	  const v0 = new THREE.Vector3(
 	      referencePoint.x,
@@ -444,6 +455,9 @@ export default function MeasureTool(props) {
 
 	    const spriteMat = new THREE.SpriteMaterial({ map: tex });
 	    measLabel = new THREE.Sprite(spriteMat);
+	    measLabel.name = MEAS_LABEL_NAME;
+	    measLabel.userData = { dist: text };
+
 	    sceneTree.object.add(measLabel);
 	    measGroup.add(measLabel);
 
@@ -462,6 +476,8 @@ export default function MeasureTool(props) {
 
 	    context.fillText(text, x, y);
 	    measLabel.material.map.needsUpdate = true;
+
+	    measLabel.userData.dist = text;
 
 	  }
 	measLabel.position.copy(midpoint);

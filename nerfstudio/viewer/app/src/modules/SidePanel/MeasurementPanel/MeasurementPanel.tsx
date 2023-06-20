@@ -3,7 +3,11 @@ import * as React from 'react';
 
 import { LevaPanel, LevaStoreProvider, useCreateStore } from 'leva';
 import { Button } from '@mui/material';
-import { useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+
+import { Line2 } from 'three/examples/jsm/lines/Line2';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial';
 
 import LevaTheme from '../../../themes/leva_theme.json';
 import SceneNode from '../../../SceneNode';
@@ -14,36 +18,117 @@ interface MeasurementPanelProps {
 }
 
 const MEASUREMENT_NAME = 'Measurement';
+const PLANE_WIDTH = 0.5;
+const PLANE_HEIGHT = 0.5;
 
 export default function MeasurementPanel(props: MeasurementPanelProps) {
   const sceneTree = props.sceneTree;
   const measPropStore = useCreateStore();
-  const dispatch = useDispatch();
+  const color = useSelector((state) => state.measState.color);
+  const markerRadius = useSelector((state) => state.measState.markerRadius);
+  const lineWidth = useSelector((state) => state.measState.lineWidth);
 
   function createChildFromData(childData) {
+    console.log(childData);
     const { type, position, rotation, scale } = childData;
     let child;
 
     switch (type) {
       case 'Mesh':
-	child = new THREE.Mesh();
+	const childName = childData.name;
+
+        // Marker
+        if (childName.includes('Origin') || childName.includes('End')) {
+	  const geom = new THREE.SphereGeometry(markerRadius);
+	  const mat = new THREE.MeshLambertMaterial({ color });
+	  const marker = new THREE.Mesh(geom, mat);
+
+	  const childPos = childData.position;
+	  const position = new THREE.Vector3(childPos[0], childPos[1], childPos[2]);
+	  marker.position.copy(position);
+	  marker.name = childName;
+	  child = marker;
+	}
+
+	// Plane
+	else if (childName.includes('Plane')) {
+	  const planeGeometry = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
+	  const planeMaterial = new THREE.MeshBasicMaterial({
+	    color: color,
+	    side: THREE.DoubleSide
+	  });
+
+	  const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+
+	  const childPos = childData.position;
+	  const childRot = childData.rotation;
+	  planeMesh.position.set(childPos[0], childPos[1], childPos[2]);
+	  planeMesh.rotation.set(childRot[0], childRot[1], childRot[2]);
+	  planeMesh.name = childName;
+	  child = planeMesh;
+	}
+
 	break;
-      case 'Line':
-	child = new THREE.Line();
+
+      case 'Line2':
+        const rgbColor = new THREE.Color(color);
+        const matLine = new LineMaterial({
+	  color,
+	  linewidth: lineWidth,
+	  dashed: true,
+	  gapSize: 0.5,
+	  dashSize: 0.4,
+	  dashScale: 80,
+	  alphaToCoverage: true,
+	});
+
+	const geomLine = new LineGeometry();
+	geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
+
+	const measLine = new Line2(geomLine, matLine);
+	measLine.name = childData.name;
+	measLine.scale.set(1,1,1);
+
+	measLine.geometry.setPositions([
+	  childData.userData.originX,
+	  childData.userData.originY,
+	  childData.userData.originZ,
+	  childData.userData.endX,
+	  childData.userData.endY,
+	  childData.userData.endZ,
+	]);
+
+	child = measLine;
 	break;
       case 'Sprite':
-	child = new THREE.Sprite();
+	const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+	canvas.height = 512;
+
+	const context = canvas.getContext('2d');
+	context.font = '18px Arial';
+        const text = childData.userData.dist;
+	const textMetrics = context.measureText(text);
+
+	const x = (canvas.width - textMetrics.width) / 2;
+	const y = (canvas.height + parseInt(context.font)) / 2;
+
+	context.fillText(text, x, y);
+
+	const tex = new THREE.Texture(canvas);
+	tex.needsUpdate = true;
+
+	const childPos = childData.position;
+	const position = new THREE.Vector3(childPos[0], childPos[1], childPos[2]);
+
+	const spriteMat = new THREE.SpriteMaterial({ map: tex });
+	child = new THREE.Sprite(spriteMat);
+	child.position.copy(position);
+	child.name = childData.name;
+	child.dist = childData.userData.dist;
+
 	break;
-      // Add cases for other child types as needed
-      default:
-	throw new Error(`Unsupported child type: ${type}`);
     }
-
-    child.position.fromArray(position);
-    child.rotation.fromArray(rotation);
-    child.scale.fromArray(scale);
-
-    // Set any other necessary properties of the child object
 
     return child;
   }
@@ -94,6 +179,7 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
 	rotation: child.rotation.toArray(),
 	scale: child.scale.toArray(),
 	name: child.name,
+	userData: child.userData,
       };
       data.children.push(childData);
     });
@@ -119,14 +205,12 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
 	const jsonString = reader.result;
 	const data = JSON.parse(jsonString);
 
-	const group = new THREE.Group();
+	const group = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
 
 	data.children.forEach(childData => {
-	  // const child = createChildFromData(childData);
-	  // group.add(child);
+	  const child = createChildFromData(childData);
+	  if (child) { group.add(child); }
 	});
-
-	// onLoad(group);
       });
 
       reader.readAsText(file);

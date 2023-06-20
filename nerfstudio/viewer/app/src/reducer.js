@@ -79,7 +79,6 @@ const initialState = {
     lineWidth: 0.005,
     unit: 'metric',
     scaleFactor: 1.0,
-    clear: false,
   },
 
   // Inspector
