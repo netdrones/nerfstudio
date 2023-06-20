@@ -49,11 +49,31 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
   }
 
   const handleClear = React.useCallback(() => {
-    dispatch({
-      type: 'write',
-      path: 'measState/clear',
-      data: true,
+    const group = sceneTree.find_object_no_create([MEASUREMENT_NAME]);
+
+    // Handle transform controls
+    const transform_controls = sceneTree.metadata.transform_controls;
+    transform_controls.detach();
+
+    // Dispose of child elements
+    group.traverse(function (child) {
+      if (child instanceof THREE.Mesh) {
+	child.geometry.dispose();
+	if (Array.isArray(child.material)) {
+	  child.material.forEach(function (material) {
+	    material.dispose();
+	  });
+	} else {
+	  child.material.dispose();
+	}
+      }
     });
+
+    // Clear out the group
+    while (group.children.length > 0) {
+      group.remove(group.children[0]);
+    }
+
   }, [sceneTree]);
 
   const handleSave = React.useCallback(() => {
