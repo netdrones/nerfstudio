@@ -82,6 +82,7 @@ export default function MeasurementPropPanel(props) {
 
   const [, setControls] = useControls(
     () => ({
+      /*
       type: {
         label: 'Dimension',
         value: measType,
@@ -93,12 +94,14 @@ export default function MeasurementPropPanel(props) {
           setType(v);
         },
       },
+      */
       mode: {
 	label: 'Mode',
 	value: measMode,
 	options: {
 	  'Points': 'points',
 	  'Plane': 'plane',
+	  'Point-to-Plane': 'p2p',
 	},
 	onChange: (v) => {
 	  setMode(v);

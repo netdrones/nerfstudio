@@ -27,7 +27,9 @@ const MEAS_TRANSFORM_NAME = 'Transform';
 
 const PLANE_1_NAME = 'P1';
 const PLANE_2_NAME = 'P2';
-const PLANE_3_NAME= 'P3';
+const PLANE_3_NAME = 'P3';
+const P2P_POINT_NAME = 'P2P-Point';
+const P2P_LINE_NAME = 'P2P-Line';
 
 export default function MeasureTool(props) {
   const sceneTree = props.sceneTree;
@@ -140,20 +142,31 @@ export default function MeasureTool(props) {
     return [startPoint, endPoint, direction, markerCoord]
   }
 
-  function saveGroup(group, filename) {
-    const json = group.toJSON();
-    const jsonString = JSON.stringify(json);
+  function getPlaneParams(mesh) {
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+    const normal = new THREE.Vector3(0, 0, 1).applyMatrix3(normalMatrix).normalize();
+    const constant = -mesh.position.dot(normal);
+    return { normal, constant };
+  }
 
-    // Create a Blob from the JSON string
-    const blob = new Blob([jsonString], { type: 'application/json' });
+  function pointToPlaneDistance(point, plane) {
+    const { normal, constant } = getPlaneParams(plane);
+    const dist = Math.abs(normal.dot(point) + constant);
+    return dist;
+  }
 
-    // Create a temporary anchor element to trigger the download
-    const anchorElement = document.createElement('a');
-    anchorElement.href = URL.createObjectURL(blob);
-    anchorElement.download = filename;
+  function projectPointToPlane(point, mesh) {
 
-    // Trigger the download
-    anchorElement.click();
+    // Create a plane object
+    const plane = new THREE.Plane();
+    mesh.updateMatrixWorld(); // Make sure the mesh's world matrix is up to date
+    plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), mesh.position);
+
+    // Distance calculation
+    const distance = plane.distanceToPoint(point);
+    const projectedPoint = point.clone().sub(plane.normal.clone().multiplyScalar(distance));
+
+    return projectedPoint;
   }
 
   const sendNerfQuery = React.useCallback(
@@ -185,11 +198,11 @@ export default function MeasureTool(props) {
    *     1. `measState/mode` {point, plane}
    *         In "point" mode, we compute the min. Euclidean distance between point pairs.
    *         In "plane" mode, we select three points in the scene to insert a plane.
+   *         In "point-to-plane" mode, we select a single point and plane.
    *     2. Number of points
    *         In "point" mode, if one point exists, then a line initializes between the first
    *         and second points which displays the distance between them.
    *         In "plane" mode, every third point placed into the scene triggers adds the plane.
-   *
    */
   const handleMeasStart = React.useCallback(
     (evt) => {
@@ -253,7 +266,8 @@ export default function MeasureTool(props) {
 	  if (p2) { p2.name = `${PLANE_2_NAME}-${labelId}`; }
 	  if (p3) { p3.name = `${PLANE_3_NAME}-${labelId}`; }
 	  if (measPlane) {
-	    measPlane.name = `${MEAS_PLANE_NAME}-${labelId}`;
+	    // measPlane.name = `${MEAS_PLANE_NAME}-${labelId}`;
+	    measPlane.name = `${MEAS_PLANE_NAME}`;
 	  }
 
 	  zeroPoints();
@@ -277,16 +291,111 @@ export default function MeasureTool(props) {
 	    transform_controls.addEventListener('dragging-changed', function (event) {
 	      camera_controls.enabled != event.value;
 	    });
-
-	    // const plane = createPlane(selector.position, 0.5, 0.5);
-	    // plane.name = MEAS_PLANE_NAME;
-
-	    // transform_controls.attach(plane);
-	    // transform_controls.setMode('rotate');
-	    // sceneTree.object.add(transform_controls);
-	    // measGroup.add(plane);
 	  }
 
+	  else if (measMode === 'p2p') {
+    	    marker.name = P2P_POINT_NAME;
+            measGroup.add(marker);
+
+            // FIXME: assumes that the plane exists, will error if not
+	    const measPlane = measGroup.getObjectByName(MEAS_PLANE_NAME);
+	    const projectedPoint = projectPointToPlane(marker.position, measPlane);
+
+	    // Create plane-distance line
+	    const rgbColor = new THREE.Color(color);
+	    const matLine = new LineMaterial({
+	      color,
+	      linewidth: lineWidth,
+	      dashed: true,
+	      gapSize: 0.5,
+	      dashSize: 0.4,
+	      dashScale: 80,
+	      alphaToCoverage: true,
+	    });
+
+	    const geomLine = new LineGeometry();
+	    geomLine.setColors([rgbColor.r, rgbColor.g, rgbColor.b]);
+
+	    const measureLine = new Line2(geomLine, matLine);
+	    measureLine.geometry.setPositions([
+	      projectedPoint.x,
+	      projectedPoint.y,
+              projectedPoint.z,
+	      marker.position.x,
+              marker.position.y,
+	      marker.position.z,
+	    ]);
+	    measureLine.geometry.attributes.position.needsUpdate = true;
+	    measureLine.computeLineDistances();
+
+	    measureLine.name = P2P_LINE_NAME;
+	    measureLine.scale.set(1, 1 ,1);
+	    measureLine.userData = {
+	      originX: projectedPoint.x,
+	      originY: projectedPoint.y,
+	      originZ: projectedPoint.z,
+	      endX: marker.position.x,
+	      endY: marker.position.y,
+	      endZ: marker.position.z,
+	    };
+
+	    measGroup.add(measureLine);
+
+	    const offset = 1;
+	    const midpoint = new THREE.Vector3();
+	    let p2pDistance = pointToPlaneDistance(marker.position, measPlane);
+	    p2pDistance = (p2pDistance * scaleFactor).toFixed(3);
+	    const distance = `${p2pDistance}m`;
+	    midpoint.addVectors(projectedPoint, marker.position).multiplyScalar(0.5);
+
+	    // Create a new canvas
+	    if (!measLabel) {
+	      let canvas = document.createElement('canvas');
+	      canvas.width = 1024;
+	      canvas.height = 512;
+	      let context = canvas.getContext('2d');
+	      let text = distance;
+	      context.font = '18px Arial';
+	      let textMetrics = context.measureText(text);
+
+	      let x = (canvas.width - textMetrics.width) / 2;
+	      let y = (canvas.height + parseInt(context.font)) / 2;
+
+	      context.fillText(text, x, y);
+
+	      const tex = new THREE.Texture(canvas);
+	      tex.needsUpdate = true;
+
+	      const spriteMat = new THREE.SpriteMaterial({ map: tex });
+	      measLabel = new THREE.Sprite(spriteMat);
+	      measLabel.name = MEAS_LABEL_NAME;
+	      measLabel.userData = { dist: text };
+
+	      sceneTree.object.add(measLabel);
+	      measGroup.add(measLabel);
+
+	    // Update existing canvas
+	    } else {
+	      let canvas = measLabel.material.map.image;
+	      let context = canvas.getContext('2d');
+	      let text = distance;
+
+	      context.font = '18px Arial';
+	      context.clearRect(0, 0, canvas.width, canvas.height);
+
+	      let textMetrics = context.measureText(text);
+	      let x = (canvas.width - textMetrics.width) / 2;
+	      let y = (canvas.height + parseInt(context.font)) / 2;
+
+	      context.fillText(text, x, y);
+	      measLabel.material.map.needsUpdate = true;
+
+	      measLabel.userData.dist = text;
+
+	    }
+
+	    measLabel.position.copy(midpoint);
+	  }
 	  else if (measMode === 'points') {
 	    marker.name = MEAS_ORIGIN_NAME;
 	    measGroup.add(marker);

@@ -28,8 +28,16 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
   const markerRadius = useSelector((state) => state.measState.markerRadius);
   const lineWidth = useSelector((state) => state.measState.lineWidth);
 
+  /*
+   * Recreate objects from JSON serialization
+   *
+   * There are a four different cases:
+   *     1. Marker Mesh
+   *     2. Plane Mesh
+   *     3. Line2 Object (between markers)
+   *     4. Sprite (distance text)
+   */
   function createChildFromData(childData) {
-    console.log(childData);
     const { type, position, rotation, scale } = childData;
     let child;
 
@@ -154,13 +162,14 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
       }
     });
 
-    // Clear out the group
+    // Clear out the group but don't delete the group
     while (group.children.length > 0) {
       group.remove(group.children[0]);
     }
 
   }, [sceneTree]);
 
+  // Serialize all measurement objects
   const handleSave = React.useCallback(() => {
     const groupId = new Date().getTime().toString();
     const filename = `${MEASUREMENT_NAME}-${groupId}`;
@@ -240,8 +249,6 @@ export default function MeasurementPanel(props: MeasurementPanelProps) {
         <Button sx={{}} variant="outlined" size="medium" onClick={handleLoad}>
           Load
         </Button>
-      </div>
-      <div className="MeasPanel-controls">
         <Button sx={{}} variant="outlined" size="medium" onClick={handleSave}>
           Save
         </Button>
